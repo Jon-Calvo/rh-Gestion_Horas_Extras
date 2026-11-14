@@ -8,6 +8,11 @@ import { SituacionBadge, Vacio } from "@/components/ui/misc";
 import { SITUACION_LABEL, type Situacion, type SolicitudResumen } from "@/lib/types";
 import { fmtFechaHora, fmtHoras, fmtImporte } from "@/lib/format";
 import { Icon } from "@/components/layout/icons";
+import { ObservacionBtn } from "@/components/solicitudes/observacion-btn";
+import { createClient } from "@/lib/supabase/client";
+import { armarCsvSolicitudes } from "@/lib/csv-solicitudes";
+import { useToast } from "@/components/ui/toast";
+import { mensajeError } from "@/lib/errors";
 
 const SITS: Situacion[] = ["BORRADOR", "EN_APROBACION", "APROBADA", "RECHAZADA", "FINALIZADA", "CANCELADA"];
 
@@ -24,17 +29,25 @@ export function SolicitudesTabla({ filas, zona, verImportes, exportar }: { filas
     { accessorKey: "motivo_nombre", header: "Motivo" },
     { accessorKey: "fecha_hora_inicio", header: "Inicio", cell: (c) => fmtFechaHora(c.getValue<string>(), zona) },
     { accessorKey: "solicitante_nombre", header: "Solicitante" },
-    { accessorKey: "cantidad_empleados", header: "Emp.", meta: undefined, cell: (c) => <div className="text-right">{c.getValue<number>()}</div> },
+    { accessorKey: "cantidad_empleados", header: "Emp.", cell: (c) => <div className="text-right">{c.getValue<number>()}</div> },
+    { accessorKey: "empleados_aprobados", header: "Aprob.", cell: (c) => <div className="text-right text-success font-medium">{c.getValue<number | undefined>() ?? "—"}</div> },
+    { accessorKey: "empleados_rechazados", header: "Rech.", cell: (c) => { const v = c.getValue<number | undefined>(); return <div className={`text-right font-medium ${v ? "text-danger" : "text-muted"}`}>{v ?? "—"}</div>; } },
     { accessorKey: "total_horas_solicitud", header: "Horas", cell: (c) => <div className="text-right">{fmtHoras(c.getValue<number>())}</div> },
+    { accessorKey: "horas_aprobadas", header: "Hs aprob.", cell: (c) => <div className="text-right text-success">{c.getValue<number | undefined>() === undefined ? "—" : fmtHoras(c.getValue<number>())}</div> },
+    { accessorKey: "horas_rechazadas", header: "Hs rech.", cell: (c) => { const v = c.getValue<number | undefined>(); return <div className={`text-right ${v ? "text-danger" : "text-muted"}`}>{v === undefined ? "—" : fmtHoras(v)}</div>; } },
+    { id: "obs", header: "Obs.", enableSorting: false, accessorFn: (r) => r.observacion ?? "", cell: (c) => <ObservacionBtn texto={c.row.original.observacion} titulo={`Observación · Solicitud ${c.row.original.numero ?? ""}`} /> },
     ...(verImportes ? [{ accessorKey: "total_importe_solicitud", header: "Importe", cell: (c: any) => <div className="text-right">{fmtImporte(c.getValue(), c.row.original.moneda)}</div> } as ColumnDef<SolicitudResumen>] : []),
   ], [zona, verImportes]);
 
-  const csv = () => {
-    const cab = ["Numero", "Estado", "Area", "Sector", "Proceso", "Motivo", "Inicio", "Fin", "Solicitante", "Empleados", "Horas", ...(verImportes ? ["Moneda", "Importe"] : [])];
-    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const lineas = datos.map((r) => [r.numero, SITUACION_LABEL[r.situacion], r.area_nombre, r.sector_nombre, r.proceso_nombre, r.motivo_nombre, fmtFechaHora(r.fecha_hora_inicio, zona), fmtFechaHora(r.fecha_hora_fin, zona), r.solicitante_nombre, r.cantidad_empleados, r.total_horas_solicitud, ...(verImportes ? [r.moneda, r.total_importe_solicitud] : [])].map(esc).join(";"));
-    const blob = new Blob(["﻿" + [cab.map(esc).join(";"), ...lineas].join("\r\n")], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `solicitudes_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  const toast = useToast();
+  const [exportando, setExportando] = useState(false);
+  const csv = async () => {
+    setExportando(true);
+    try {
+      const contenido = await armarCsvSolicitudes(createClient(), datos, { zona, verImportes });
+      const blob = new Blob([contenido], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `solicitudes_detalle_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+    } catch (e) { toast("error", mensajeError(e)); } finally { setExportando(false); }
   };
 
   return (
@@ -45,7 +58,7 @@ export function SolicitudesTabla({ filas, zona, verImportes, exportar }: { filas
           <option value="">Todos los estados</option>{SITS.map((x) => <option key={x} value={x}>{SITUACION_LABEL[x]}</option>)}
         </select>
         <div className="flex-1" />
-        {exportar && <button className="btn btn-secondary" onClick={csv} disabled={datos.length === 0}><Icon name="download" size={16} /> Exportar CSV</button>}
+        {exportar && <button className="btn btn-secondary" onClick={csv} disabled={datos.length === 0 || exportando} title="Una fila por empleado, con horas e importes por banda horaria">{exportando ? <span className="spinner" /> : <Icon name="download" size={16} />} Exportar CSV (detalle)</button>}
       </div>
       {filas.length === 0 ? <Vacio titulo="No hay solicitudes para mostrar" detalle="Si esperabas ver alguna, revisá tu alcance de visibilidad con un administrador." />
         : <DataTable data={datos} columns={columns} filtroGlobal={q} onFila={(r) => router.push(`/solicitudes/${r.id}`)} vacio="Ninguna solicitud coincide con el filtro" />}

@@ -4,6 +4,7 @@ import readXlsxFile from "read-excel-file";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/misc";
 import { mensajeError } from "@/lib/errors";
+import { parseDecimal } from "@/lib/format";
 
 const COLS = ["legajo", "nombre_completo", "categoria", "area", "sector", "proceso", "estado", "ib", "ranking_real"] as const;
 type Fila = Record<(typeof COLS)[number], string>;
@@ -54,9 +55,10 @@ export function Importador() {
     const sb = createClient(); const out: Res[] = [];
     for (let i = 0; i < filas.length; i++) {
       const f = filas[i];
+      if (f.ranking_real.trim() !== "" && parseDecimal(f.ranking_real) === null) { out.push({ n: i + 2, legajo: f.legajo, ok: false, msg: `ranking_real "${f.ranking_real}" no es un número (usá coma o punto)` }); setRes([...out]); continue; }
       const { error } = await sb.rpc("rpc_importar_empleado_excel", {
         p_legajo: f.legajo, p_nombre_completo: f.nombre_completo, p_categoria_codigo: f.categoria, p_area_nombre: f.area, p_sector_nombre: f.sector,
-        p_proceso_nombre: f.proceso, p_estado: f.estado || "ACTIVO", p_ib_nombre: f.ib || null, p_ranking_horas_real: f.ranking_real || null,
+        p_proceso_nombre: f.proceso, p_estado: f.estado || "ACTIVO", p_ib_nombre: f.ib || null, p_ranking_horas_real: parseDecimal(f.ranking_real),
       });
       out.push({ n: i + 2, legajo: f.legajo, ok: !error, msg: error ? mensajeError(error) : undefined });
       setRes([...out]);

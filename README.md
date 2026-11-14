@@ -5,6 +5,13 @@ Interfaz para el esquema **Horas Extras V2.1**. Toda la lógica de negocio vive 
 ## Pantallas
 Ingreso · Panel · Solicitudes (lista, nueva, detalle con aprobación por empleado, control de ingreso, reemplazos, rectificación, cronología) · Aprobaciones · Control de ingreso · Empleados (+ importación xlsx/CSV) · Ranking · Usuarios y permisos · Catálogos · Configuración y apariencia · Auditoría. Modo claro / oscuro / según dispositivo; adaptado a PC, tablet y celular.
 
+## Orden de actualización (cambios de noviembre)
+1. Aplicá primero la migración `0002_bandas_por_dia_y_observacion_ingreso.sql` en Supabase (ver `INSTRUCCIONES_MIGRACION_0002.md`).
+2. Después publicá esta versión de la interfaz. Sin la migración, las bandas no aceptan días, el control de ingreso no guarda observación y no aparece el desglose de aprobados/rechazados.
+
+## Decimales
+En los campos decimales podés escribir **coma o punto** (`1,5` o `1.5`); se guardan igual. No uses separador de miles. En el CSV los números salen con coma decimal.
+
 ## Variables de entorno
 | Variable | Dónde | Uso |
 |---|---|---|
@@ -27,6 +34,6 @@ npm run dev
 5. Ingresá con el usuario DESARROLLADOR que creaste. Desde «Usuarios y permisos» das de alta al resto.
 
 ## Qué se verificó y qué no
-- Verificado: `tsc` sin errores y `next build` exitoso; capturas de la pantalla de ingreso en claro/oscuro y en ancho de celular.
+- Verificado: `tsc` sin errores y `next build` exitoso; capturas de ingreso, control de ingreso (filtros y ventana de registro), aprobaciones (IB y color) y edición de bandas, renderizadas con datos simulados; el armado del CSV probado con datos simulados.
 - **No verificado**: funcionamiento contra tu Supabase real (login, RPC, RLS, importación, alta de usuarios), ni el resto de las pantallas renderizadas con datos. Hacé una pasada con usuarios de prueba (admin, aprobador, control de ingreso, sin permisos, inactivo) antes de usarlo en producción.
 - Los tipos de `src/lib/types.ts` están escritos a mano según el esquema; si cambia el esquema, actualizarlos.

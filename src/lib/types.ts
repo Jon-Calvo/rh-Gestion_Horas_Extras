@@ -12,7 +12,7 @@ export interface Proceso { id: string; sector_id: string; nombre: string; activo
 export interface Motivo { id: string; motivo: string; tipo: "PRODUCTIVO" | "IMPRODUCTIVO"; requiere_aprobacion: boolean; activo: boolean }
 export interface CategoriaTipo { id: string; codigo: string; descripcion: string | null; activo: boolean }
 export interface Categoria { id: string; categoria_tipo_id: string; valor_hora: number; moneda: string; vigente_desde: string; vigente_hasta: string | null }
-export interface BandaHoraria { id: string; descripcion: string; hora_desde: string; hora_hasta: string; multiplicador: number; multiplicador_feriado: number | null; activo: boolean }
+export interface BandaHoraria { id: string; descripcion: string; hora_desde: string; hora_hasta: string; multiplicador: number; multiplicador_feriado: number | null; activo: boolean; dia_desde?: number; dia_hasta?: number }
 export interface Feriado { id: string; fecha: string; descripcion: string | null }
 export interface IbConfig { id: string; descripcion: string; activo: boolean }
 export interface BandaRanking {
@@ -36,6 +36,9 @@ export interface SolicitudResumen {
   motivo_id: string; motivo_nombre: string; motivo_tipo: string; fecha_hora_inicio: string; fecha_hora_fin: string;
   observacion: string | null; moneda: string | null; fecha_hora_solicitud: string; cantidad_empleados: number; total_horas_solicitud: number;
   total_importe_solicitud: number | null; importe_aprobado: number | null; importe_rechazado: number | null; importe_pendiente: number | null;
+  // Desglose (migración 0002). Opcionales: si la migración todavía no se aplicó, no vienen.
+  empleados_aprobados?: number; empleados_rechazados?: number; empleados_pendientes?: number;
+  horas_aprobadas?: number; horas_rechazadas?: number; horas_pendientes?: number;
 }
 export interface EmpleadoDetalle {
   solicitud_empleado_id: string; solicitud_id: string; empleado_id: string; legajo: string; nombre_completo: string;
@@ -43,7 +46,7 @@ export interface EmpleadoDetalle {
   estado_asistencia: EstadoAsistencia; estado_registro: EstadoRegistro; motivo_rechazo: string | null; total_horas: number;
   total_importe: number | null; fecha_hora_aprobacion: string | null; usuario_aprobacion_id: string | null;
   fecha_hora_ingreso: string | null; usuario_control_ingreso_id: string | null; reemplaza_a: string | null;
-  reemplaza_a_legajo: string | null; reemplaza_a_nombre: string | null;
+  reemplaza_a_legajo: string | null; reemplaza_a_nombre: string | null; observacion_control_ingreso?: string | null;
 }
 export interface EmpleadoResumen {
   id: string; legajo: string; nombre_completo: string; categoria_codigo: string; area_id: string | null; area_nombre: string | null;
@@ -79,3 +82,5 @@ export const ROL_LABEL: Record<string, string> = {
   DESARROLLADOR: "Desarrollador", ADMIN: "Administrador", RRHH: "RRHH", RESPONSABLE: "Responsable",
   APROBADOR: "Aprobador", CONTROL_INGRESO: "Control de ingreso", CONSULTA: "Consulta",
 };
+export const DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] as const;
+export const DIAS_CORTO = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] as const;

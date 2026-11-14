@@ -3,7 +3,8 @@ import { getSesion } from "@/lib/session";
 import { permisosPorSolicitud } from "@/lib/permisos";
 import { PageHeader, Vacio } from "@/components/ui/misc";
 import { ListaControl } from "./lista";
-import type { EmpleadoDetalle, SolicitudResumen } from "@/lib/types";
+import { empleadosDeSolicitudes } from "@/lib/empleados-solicitud";
+import type { SolicitudResumen } from "@/lib/types";
 
 export const metadata = { title: "Control de ingreso" };
 
@@ -15,7 +16,7 @@ export default async function ControlIngreso() {
   const permisos = await permisosPorSolicitud(sb, todas);
   const mias = todas.filter((x) => permisos.get(x.id)?.puede_control_ingreso);
   const ids = mias.map((m) => m.id);
-  const emps = ids.length ? ((await sb.from("vista_solicitud_empleados_detalle").select("*").in("solicitud_id", ids).eq("estado_registro", "ACTIVO").eq("estado_aprobacion", "APROBADO")).data ?? []) as EmpleadoDetalle[] : [];
+  const emps = await empleadosDeSolicitudes(sb, ids, true);
   return (
     <>
       <PageHeader titulo="Control de ingreso" subtitulo="Solicitudes aprobadas dentro de tu alcance de visibilidad. Registrá el resultado de cada empleado y finalizá." />

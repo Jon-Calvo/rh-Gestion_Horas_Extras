@@ -6,7 +6,7 @@ import { Badge, Campo, Vacio } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
 import { ScopeSelect, type Scope } from "@/components/ui/scope-select";
 import { useRpc } from "@/lib/use-accion";
-import { fmtHoras } from "@/lib/format";
+import { decimalATexto, fmtHoras, parseDecimal } from "@/lib/format";
 import { bandaPara } from "@/lib/ranking";
 import type { Catalogos } from "@/lib/catalogos";
 import type { BandaRanking, CategoriaTipo, EmpleadoResumen, IbConfig } from "@/lib/types";
@@ -39,28 +39,30 @@ export function EmpleadosTabla({ filas, cat, categorias, ibs, bandas, puedeEdita
         {puedeEditar && <button className="btn btn-primary" onClick={() => setEdit("nuevo")}>+ Nuevo empleado</button>}
       </div>
       {filas.length === 0 ? <Vacio titulo="No hay empleados para mostrar" detalle="Importá un Excel o cargalos manualmente." /> : <DataTable data={datos} columns={columns} filtroGlobal={q} vacio="Ningún empleado coincide" />}
-      {puedeEditar && <FormEmpleado abierto={edit !== null} emp={edit === "nuevo" ? null : edit} cat={cat} categorias={categorias} ibs={ibs} onCerrar={() => setEdit(null)} />}
+      {puedeEditar && edit !== null && <FormEmpleado key={edit === "nuevo" ? "nuevo" : edit.id} abierto emp={edit === "nuevo" ? null : edit} cat={cat} categorias={categorias} ibs={ibs} onCerrar={() => setEdit(null)} />}
     </>
   );
 }
 
 function FormEmpleado({ abierto, emp, cat, categorias, ibs, onCerrar }: { abierto: boolean; emp: EmpleadoResumen | null; cat: Catalogos; categorias: CategoriaTipo[]; ibs: IbConfig[]; onCerrar: () => void }) {
-  const { rpc, ocupado } = useRpc();
+  const { rpc, ocupado, toast } = useRpc();
   const [legajo, setLegajo] = useState(emp?.legajo ?? "");
   const [nombre, setNombre] = useState(emp?.nombre_completo ?? "");
   const [categoria, setCategoria] = useState(emp?.categoria_codigo ?? "");
   const [scope, setScope] = useState<Scope>({ area_id: emp?.area_id ?? "", sector_id: emp?.sector_id ?? "", proceso_id: emp?.proceso_id ?? "" });
   const [estado, setEstado] = useState<"ACTIVO" | "INACTIVO">(emp?.estado ?? "ACTIVO");
   const [ib, setIb] = useState(emp?.ib_id ?? "");
-  const [real, setReal] = useState(emp?.ranking_horas_real?.toString() ?? "");
+  const [real, setReal] = useState(decimalATexto(emp?.ranking_horas_real));
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
+    const realNum = parseDecimal(real);
+    if (real.trim() !== "" && realNum === null) { toast("error", "El ranking real debe ser un número (podés usar coma o punto)."); return; }
     const r = await rpc("rpc_upsert_empleado", {
       p_legajo: legajo.trim(), p_nombre_completo: nombre.trim(), p_categoria_codigo: categoria,
       p_area_id: scope.area_id || null, p_sector_id: scope.sector_id || null, p_proceso_id: scope.proceso_id || null,
-      p_estado: estado, p_ib_id: ib || null, p_ranking_horas_real: real === "" ? null : Number(real),
-      p_borrar_ib: !!emp?.ib_id && !ib, p_borrar_ranking_real: emp?.ranking_horas_real != null && real === "",
+      p_estado: estado, p_ib_id: ib || null, p_ranking_horas_real: realNum,
+      p_borrar_ib: !!emp?.ib_id && !ib, p_borrar_ranking_real: emp?.ranking_horas_real != null && real.trim() === "",
     }, emp ? "Empleado actualizado" : "Empleado creado");
     if (r.ok) onCerrar();
   };
@@ -77,7 +79,7 @@ function FormEmpleado({ abierto, emp, cat, categorias, ibs, onCerrar }: { abiert
         <ScopeSelect value={scope} onChange={setScope} areas={cat.areas} sectores={cat.sectores} procesos={cat.procesos} />
         <div className="grid sm:grid-cols-2 gap-3">
           <Campo etiqueta="IB (opcional)"><select className="input" value={ib} onChange={(e) => setIb(e.target.value)}><option value="">Sin IB</option>{ibs.map((i) => <option key={i.id} value={i.id}>{i.descripcion}</option>)}</select></Campo>
-          <Campo etiqueta="Ranking real (opcional)" ayuda="El ranking según solicitud lo calcula el sistema."><input className="input" type="number" step="0.01" value={real} onChange={(e) => setReal(e.target.value)} /></Campo>
+          <Campo etiqueta="Ranking real (opcional)" ayuda="Coma o punto como decimal. El ranking según solicitud lo calcula el sistema."><input className="input" inputMode="decimal" placeholder="Ej.: 12,5" value={real} onChange={(e) => setReal(e.target.value)} /></Campo>
         </div>
         <div className="flex justify-end gap-2"><button type="button" className="btn btn-secondary" onClick={onCerrar}>Cancelar</button><button className="btn btn-primary" disabled={!!ocupado}>{ocupado ? <span className="spinner" /> : "Guardar"}</button></div>
       </form>}

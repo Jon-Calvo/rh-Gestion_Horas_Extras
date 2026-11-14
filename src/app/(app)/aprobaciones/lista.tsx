@@ -5,9 +5,11 @@ import { AprobacionBadge } from "@/components/ui/misc";
 import { PromptModal } from "@/components/ui/prompt-modal";
 import { useRpc } from "@/lib/use-accion";
 import { fmtFechaHora, fmtHoras, fmtImporte } from "@/lib/format";
-import type { EmpleadoDetalle, SolicitudResumen } from "@/lib/types";
+import { IbRanking } from "@/components/solicitudes/ranking-chip";
+import { ObservacionBtn, ResumenEstados } from "@/components/solicitudes/observacion-btn";
+import type { BandaRanking, EmpleadoDetalle, SolicitudResumen } from "@/lib/types";
 
-export function ListaAprobaciones({ solicitudes, empleados, zona, verImportes }: { solicitudes: SolicitudResumen[]; empleados: EmpleadoDetalle[]; zona: string; verImportes: boolean }) {
+export function ListaAprobaciones({ solicitudes, empleados, bandas, zona, verImportes }: { solicitudes: SolicitudResumen[]; empleados: EmpleadoDetalle[]; bandas: BandaRanking[]; zona: string; verImportes: boolean }) {
   const { rpc, ocupado } = useRpc();
   const [rech, setRech] = useState<{ tipo: "uno" | "todos"; id: string } | null>(null);
   return (
@@ -22,17 +24,20 @@ export function ListaAprobaciones({ solicitudes, empleados, zona, verImportes }:
                 <Link href={`/solicitudes/${s.id}`} className="font-semibold text-primary">Solicitud {s.numero}</Link>
                 <div className="text-sm text-muted">{s.area_nombre} · {s.sector_nombre} · {s.proceso_nombre} · {s.motivo_nombre}</div>
                 <div className="text-xs text-muted">{fmtFechaHora(s.fecha_hora_inicio, zona)} → {fmtFechaHora(s.fecha_hora_fin, zona)} · {s.solicitante_nombre}</div>
+                <div className="text-xs text-muted"><ResumenEstados s={s} /></div>
               </div>
+              <ObservacionBtn texto={s.observacion} titulo={`Observación · Solicitud ${s.numero}`} />
               <div className="flex gap-2">
                 <button className="btn btn-success btn-sm" disabled={!!ocupado || pend.length === 0} onClick={() => rpc("rpc_aprobar_masivo", { p_solicitud_id: s.id }, "Pendientes aprobados")}>Aprobar {pend.length || ""} pendiente(s)</button>
                 <button className="btn btn-secondary btn-sm" disabled={!!ocupado || pend.length === 0} onClick={() => setRech({ tipo: "todos", id: s.id })}>Rechazar pendientes</button>
               </div>
             </header>
-            <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Empleado</th><th>Estado</th><th className="text-right">Horas</th>{verImportes && <th className="text-right">Importe</th>}<th /></tr></thead>
+            <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Empleado</th><th>IB / ranking</th><th>Estado</th><th className="text-right">Horas</th>{verImportes && <th className="text-right">Importe</th>}<th /></tr></thead>
               <tbody>{es.map((e) => (
                 <tr key={e.solicitud_empleado_id}>
                   <td>{e.nombre_completo}<div className="text-xs text-muted">{e.legajo}</div></td>
-                  <td><AprobacionBadge estado={e.estado_aprobacion} /></td>
+                  <td><IbRanking ib={e.ib_descripcion} ranking={e.ranking_horas_al_momento} bandas={bandas} /></td>
+                  <td><AprobacionBadge estado={e.estado_aprobacion} />{e.motivo_rechazo && <div className="text-xs text-muted mt-0.5 max-w-48">{e.motivo_rechazo}</div>}</td>
                   <td className="text-right">{fmtHoras(e.total_horas)}</td>{verImportes && <td className="text-right">{fmtImporte(e.total_importe, s.moneda)}</td>}
                   <td className="text-right"><div className="flex gap-1.5 justify-end">
                     {e.estado_aprobacion !== "APROBADO" && <button className="btn btn-success btn-sm" disabled={!!ocupado} onClick={() => rpc("rpc_aprobar_empleado", { p_solicitud_empleado_id: e.solicitud_empleado_id }, "Empleado aprobado")}>Aprobar</button>}

@@ -39,3 +39,19 @@ export function isoToLocal(iso: string, tz: string): string {
   return `${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}`;
 }
 export function nowLocal(tz: string): string { return isoToLocal(new Date().toISOString(), tz); }
+
+/** Texto de un campo decimal → número. Acepta coma o punto como separador decimal ("12,5" y "12.5"); null si está vacío o no es válido.
+ *  No usar separador de miles: "1.234,5" se interpreta como 1234,5 pero "1.234" como 1,234. */
+export function parseDecimal(texto: string | number | null | undefined): number | null {
+  if (texto === null || texto === undefined) return null;
+  let t = String(texto).trim().replace(/\s/g, "");
+  if (t === "") return null;
+  if (t.includes(",") && t.includes(".")) t = t.replace(/\./g, "").replace(",", ".");
+  else t = t.replace(",", ".");
+  if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
+  return Number(t);
+}
+/** Número → texto para mostrar en un campo decimal (con coma). */
+export function decimalATexto(n: number | string | null | undefined): string {
+  return n === null || n === undefined ? "" : String(n).replace(".", ",");
+}

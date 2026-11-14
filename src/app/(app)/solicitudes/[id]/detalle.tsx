@@ -7,9 +7,10 @@ import { Modal } from "@/components/ui/modal";
 import { PromptModal } from "@/components/ui/prompt-modal";
 import { ScopeSelect, type Scope } from "@/components/ui/scope-select";
 import { EmployeePicker } from "@/components/solicitudes/employee-picker";
+import { IngresoModal, type RegistroIngreso } from "@/components/solicitudes/ingreso-modal";
+import { IbRanking } from "@/components/solicitudes/ranking-chip";
 import { useRpc } from "@/lib/use-accion";
 import { fmtFechaHora, fmtHoras, fmtImporte, isoToLocal, localToIso } from "@/lib/format";
-import { bandaPara } from "@/lib/ranking";
 import type { Catalogos } from "@/lib/catalogos";
 import type { AuditoriaNegocio, BandaRanking, DetalleCalculo, EmpleadoDetalle, EstadoAsistencia, PermisosScope, SolicitudResumen } from "@/lib/types";
 
@@ -37,7 +38,12 @@ export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandas
   const hayPendientes = vigentes.some((e) => e.estado_aprobacion === "PENDIENTE_APROBACION");
 
   const solo = (nombre: string, args: Record<string, unknown>, ok: string) => rpc(nombre, args, ok);
-  const registrar = (se: EmpleadoDetalle, r: EstadoAsistencia) => solo("rpc_registrar_control_ingreso", { p_solicitud_empleado_id: se.solicitud_empleado_id, p_resultado: r }, "Control de ingreso registrado");
+  const [regIngreso, setRegIngreso] = useState<RegistroIngreso | null>(null);
+  const registrar = (se: EmpleadoDetalle, r: EstadoAsistencia) => setRegIngreso({ se: se.solicitud_empleado_id, nombre: se.nombre_completo, resultado: r });
+  const confirmarIngreso = async (r: RegistroIngreso, iso: string, obs: string) => {
+    const res = await rpc("rpc_registrar_control_ingreso", { p_solicitud_empleado_id: r.se, p_resultado: r.resultado, p_fecha_hora: iso, p_observacion: obs || null }, "Control de ingreso registrado");
+    if (res.ok) setRegIngreso(null);
+  };
 
   return (
     <>
@@ -65,8 +71,10 @@ export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandas
           </dl>
         </div>
         <div className="card p-5 grid grid-cols-2 gap-4 content-start">
-          <div><div className="label">Empleados</div><div className="text-2xl font-bold">{sol.cantidad_empleados}</div></div>
-          <div><div className="label">Horas</div><div className="text-2xl font-bold">{fmtHoras(sol.total_horas_solicitud)}</div></div>
+          <div><div className="label">Empleados</div><div className="text-2xl font-bold">{sol.cantidad_empleados}</div>
+            {sol.empleados_aprobados !== undefined && <div className="text-xs mt-1"><span className="text-success font-semibold">{sol.empleados_aprobados} aprob.</span> · <span className="text-danger font-semibold">{sol.empleados_rechazados} rech.</span> · <span className="text-warning font-semibold">{sol.empleados_pendientes} pend.</span></div>}</div>
+          <div><div className="label">Horas</div><div className="text-2xl font-bold">{fmtHoras(sol.total_horas_solicitud)}</div>
+            {sol.horas_aprobadas !== undefined && <div className="text-xs mt-1"><span className="text-success font-semibold">{fmtHoras(sol.horas_aprobadas)} aprob.</span> · <span className="text-danger font-semibold">{fmtHoras(sol.horas_rechazadas)} rech.</span> · <span className="text-warning font-semibold">{fmtHoras(sol.horas_pendientes)} pend.</span></div>}</div>
           {verImportes && <>
             <div className="col-span-2"><div className="label">Importe total</div><div className="text-xl font-bold">{fmtImporte(sol.total_importe_solicitud, sol.moneda)}</div></div>
             <div><div className="label">Aprobado</div><div className="text-sm font-semibold" style={{ color: "var(--success)" }}>{fmtImporte(sol.importe_aprobado)}</div></div>
@@ -81,21 +89,20 @@ export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandas
       </div>
       <div className="card overflow-hidden"><div className="overflow-x-auto">
         <table className="tbl">
-          <thead><tr><th>Empleado</th><th>Ranking</th><th>Aprobación</th><th>Ingreso</th><th className="text-right">Horas</th>{verImportes && <th className="text-right">Importe</th>}<th /></tr></thead>
+          <thead><tr><th>Empleado</th><th>IB / ranking</th><th>Aprobación</th><th>Ingreso</th><th className="text-right">Horas</th>{verImportes && <th className="text-right">Importe</th>}<th /></tr></thead>
           <tbody>
             {vigentes.length === 0 && <tr><td colSpan={7} className="text-center text-muted py-10">Todavía no hay empleados en esta solicitud.</td></tr>}
             {vigentes.map((e) => {
-              const b = bandaPara(e.ranking_horas_al_momento, bandas, "solicitud");
               const filas = detalle.filter((d) => d.solicitud_empleado_id === e.solicitud_empleado_id);
               return (
                 <Fragment key={e.solicitud_empleado_id}>
                   <tr>
                     <td><button className="text-left" onClick={() => setAbierta(abierta === e.solicitud_empleado_id ? null : e.solicitud_empleado_id)} aria-expanded={abierta === e.solicitud_empleado_id}>
                       <div className="font-medium">{e.nombre_completo}</div>
-                      <div className="text-xs text-muted">{e.legajo}{e.ib_descripcion ? ` · IB ${e.ib_descripcion}` : ""}{e.reemplaza_a_nombre ? ` · reemplaza a ${e.reemplaza_a_nombre}` : ""}</div></button></td>
-                    <td>{e.ranking_horas_al_momento !== null ? <span title={b?.descripcion} style={{ color: b?.color }}>{fmtHoras(e.ranking_horas_al_momento)} h</span> : "—"}</td>
+                      <div className="text-xs text-muted">{e.legajo}{e.reemplaza_a_nombre ? ` · reemplaza a ${e.reemplaza_a_nombre}` : ""}</div></button></td>
+                    <td><IbRanking ib={e.ib_descripcion} ranking={e.ranking_horas_al_momento} bandas={bandas} /></td>
                     <td><AprobacionBadge estado={e.estado_aprobacion} />{e.motivo_rechazo && <div className="text-xs text-muted mt-1 max-w-48">{e.motivo_rechazo}</div>}</td>
-                    <td><AsistenciaBadge estado={e.estado_asistencia} /></td>
+                    <td><AsistenciaBadge estado={e.estado_asistencia} />{e.fecha_hora_ingreso && <div className="text-xs text-muted">{fmtFechaHora(e.fecha_hora_ingreso, zona)}</div>}{e.observacion_control_ingreso && <div className="text-xs mt-0.5 max-w-48 whitespace-pre-wrap">💬 {e.observacion_control_ingreso}</div>}</td>
                     <td className="text-right">{fmtHoras(e.total_horas)}</td>
                     {verImportes && <td className="text-right">{fmtImporte(e.total_importe, sol.moneda)}</td>}
                     <td><div className="flex flex-wrap gap-1.5 justify-end">
@@ -160,6 +167,7 @@ export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandas
       </Modal>
       <PromptModal abierto={typeof dlg === "object" && dlg !== null && dlg.tipo === "rechazar"} titulo="Rechazar empleado" etiqueta="Motivo del rechazo (obligatorio)" confirmar="Rechazar" peligro ocupado={!!ocupado} onCerrar={cerrar}
         onConfirmar={async (t) => { if (typeof dlg === "object" && dlg) { const r = await rpc("rpc_rechazar_empleado", { p_solicitud_empleado_id: dlg.se.solicitud_empleado_id, p_motivo: t }, "Empleado rechazado"); if (r.ok) cerrar(); } }} />
+      <IngresoModal registro={regIngreso} zona={zona} ocupado={!!ocupado} onCerrar={() => setRegIngreso(null)} onConfirmar={confirmarIngreso} />
       <PromptModal abierto={dlg === "rechazarTodos"} titulo="Rechazar todos los pendientes" etiqueta="Motivo del rechazo (obligatorio)" confirmar="Rechazar todos" peligro ocupado={!!ocupado} onCerrar={cerrar}
         onConfirmar={async (t) => { const r = await rpc("rpc_rechazar_masivo", { p_solicitud_id: sol.id, p_motivo: t }, "Pendientes rechazados"); if (r.ok) cerrar(); }} />
       <PromptModal abierto={dlg === "cancelar"} titulo="Cancelar solicitud" etiqueta="Motivo de la cancelación (obligatorio)" confirmar="Cancelar solicitud" peligro ocupado={!!ocupado} onCerrar={cerrar}
