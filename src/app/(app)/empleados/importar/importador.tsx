@@ -1,32 +1,16 @@
 "use client";
 import { useState } from "react";
-import readXlsxFile from "read-excel-file";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/misc";
 import { mensajeError } from "@/lib/errors";
 import { parseDecimal } from "@/lib/format";
+import { leerMatriz, norm } from "@/lib/tabular";
 
 const COLS = ["legajo", "nombre_completo", "categoria", "area", "sector", "proceso", "estado", "ib", "ranking_real"] as const;
 type Fila = Record<(typeof COLS)[number], string>;
 interface Res { n: number; legajo: string; ok: boolean; msg?: string }
 
-const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 const ALIAS: Record<string, (typeof COLS)[number]> = { legajo: "legajo", nombre: "nombre_completo", nombre_completo: "nombre_completo", categoria: "categoria", area: "area", sector: "sector", proceso: "proceso", estado: "estado", ib: "ib", ranking_real: "ranking_real", ranking: "ranking_real" };
-
-function parseCsv(txt: string): string[][] {
-  const sep = (txt.split("\n")[0].match(/;/g)?.length ?? 0) >= (txt.split("\n")[0].match(/,/g)?.length ?? 0) ? ";" : ",";
-  const out: string[][] = []; let fila: string[] = []; let cel = ""; let q = false;
-  for (let i = 0; i < txt.length; i++) {
-    const c = txt[i];
-    if (q) { if (c === '"') { if (txt[i + 1] === '"') { cel += '"'; i++; } else q = false; } else cel += c; }
-    else if (c === '"') q = true;
-    else if (c === sep) { fila.push(cel); cel = ""; }
-    else if (c === "\n") { fila.push(cel.replace(/\r$/, "")); out.push(fila); fila = []; cel = ""; }
-    else cel += c;
-  }
-  if (cel || fila.length) { fila.push(cel.replace(/\r$/, "")); out.push(fila); }
-  return out.filter((r) => r.some((x) => x.trim() !== ""));
-}
 
 export function Importador() {
   const [filas, setFilas] = useState<Fila[]>([]);
@@ -38,10 +22,7 @@ export function Importador() {
   const leer = async (f: File) => {
     setErr(null); setRes([]); setFilas([]); setArchivo(f.name);
     try {
-      let matriz: string[][];
-      if (/\.xlsx$/i.test(f.name)) matriz = (await readXlsxFile(f)).map((r) => r.map((c) => (c === null || c === undefined ? "" : c instanceof Date ? c.toISOString().slice(0, 10) : String(c))));
-      else if (/\.(csv|txt)$/i.test(f.name)) matriz = parseCsv(await f.text());
-      else throw new Error("Formato no soportado. Usá .xlsx o .csv");
+      const matriz = await leerMatriz(f);
       if (matriz.length < 2) throw new Error("El archivo no tiene filas de datos.");
       const idx = matriz[0].map((h) => ALIAS[norm(h)]);
       const faltan = (["legajo", "nombre_completo", "categoria", "area", "sector", "proceso"] as const).filter((c) => !idx.includes(c));

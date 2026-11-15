@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Badge, Campo } from "@/components/ui/misc";
 import { Modal } from "@/components/ui/modal";
@@ -88,6 +88,28 @@ function Editor({ usuario, roles, rolesDe, permisos, scopes, cat, onCerrar }: { 
   const [sc, setSc] = useState<Record<string, { area_id: string; sector_id: string; proceso_id: string }>>(() => Object.fromEntries(scopes.map((s) => [s.tipo_permiso, { area_id: s.area_id ?? "", sector_id: s.sector_id ?? "", proceso_id: s.proceso_id ?? "" }])));
   const [pass, setPass] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  // E-mail: vive en la cuenta de acceso de Supabase (no en las tablas de la app), por eso se lee/escribe vía el servidor.
+  const [email, setEmail] = useState<string | null>(null);
+  const [emailOriginal, setEmailOriginal] = useState("");
+  const [emailInfo, setEmailInfo] = useState<{ error?: string; protegido?: boolean }>({});
+  const [guardandoEmail, setGuardandoEmail] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    fetch(`/api/admin/usuarios?id=${usuario.id}`).then(async (r) => ({ ok: r.ok, j: await r.json().catch(() => ({})) })).then(({ ok, j }) => {
+      if (!vivo) return;
+      if (ok) { setEmail(j.email); setEmailOriginal(j.email); setEmailInfo({ protegido: !!j.protegido }); } else setEmailInfo({ error: j.error ?? "No se pudo leer el e-mail" });
+    }).catch(() => vivo && setEmailInfo({ error: "No se pudo leer el e-mail" }));
+    return () => { vivo = false; };
+  }, [usuario.id]);
+  const cambiarEmail = async () => {
+    setGuardandoEmail(true);
+    const r = await fetch("/api/admin/usuarios", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: usuario.id, email }) });
+    const j = await r.json().catch(() => ({}));
+    setGuardandoEmail(false);
+    if (!r.ok) { toast("error", j.error ?? "No se pudo cambiar el e-mail"); return; }
+    setEmailOriginal((email ?? "").trim().toLowerCase()); setEmail((email ?? "").trim().toLowerCase());
+    toast("ok", "E-mail actualizado. Desde ahora inicia sesión con el nuevo.");
+  };
 
   const guardar = async () => {
     setOcupado(true);
@@ -120,6 +142,7 @@ function Editor({ usuario, roles, rolesDe, permisos, scopes, cat, onCerrar }: { 
   };
 
   const resetPass = async () => {
+    if (emailInfo.protegido) { toast("error", "Solo un usuario DESARROLLADOR puede cambiar la contraseña de otro DESARROLLADOR."); return; }
     const r = await fetch("/api/admin/usuarios", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: usuario.id, password: pass }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) toast("error", j.error ?? "No se pudo cambiar la contraseña"); else { toast("ok", "Contraseña actualizada"); setPass(""); }
@@ -129,6 +152,12 @@ function Editor({ usuario, roles, rolesDe, permisos, scopes, cat, onCerrar }: { 
     <Modal abierto onCerrar={onCerrar} titulo={`Gestionar · ${usuario.nombre_completo}`} ancho>
       <div className="space-y-6">
         {esDev && <div className="text-sm rounded-lg px-3 py-2" style={{ background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}>Usuario DESARROLLADOR: protegido por la base. Sus permisos y su estado no se pueden modificar desde acá.</div>}
+        <section className="grid sm:grid-cols-[1fr_auto] gap-2 items-end">
+          <Campo etiqueta="E-mail (usuario de acceso)" ayuda={emailInfo.error ?? (emailInfo.protegido ? "Cuenta DESARROLLADOR: solo otro DESARROLLADOR puede cambiarla." : "Si estaba mal cargado, corregilo: se aplica al instante y no requiere confirmación.")}>
+            <input className="input" type="email" value={email ?? ""} disabled={email === null || !!emailInfo.protegido} placeholder={email === null && !emailInfo.error ? "Cargando…" : ""} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
+          </Campo>
+          <button className="btn btn-secondary" disabled={guardandoEmail || email === null || !!emailInfo.protegido || (email ?? "").trim().toLowerCase() === emailOriginal} onClick={cambiarEmail}>{guardandoEmail ? <span className="spinner" /> : "Cambiar e-mail"}</button>
+        </section>
         <section className="grid sm:grid-cols-2 gap-3 items-end">
           <Campo etiqueta="Nombre completo"><input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} /></Campo>
           <label className="flex items-center gap-2 text-sm min-h-10"><input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Cuenta activa <span className="text-xs text-muted">(inactiva = no puede operar)</span></label>

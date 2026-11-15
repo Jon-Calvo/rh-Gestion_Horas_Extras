@@ -13,6 +13,15 @@ async function exigirAdmin() {
   if (esAdmin !== true) return { error: NextResponse.json({ error: "Solo administradores" }, { status: 403 }) };
   return { sb };
 }
+// Un administrador común no puede tocar las credenciales (e-mail / contraseña) de un DESARROLLADOR: sería una vía para tomar su cuenta.
+async function protegido(sb: Awaited<ReturnType<typeof createClient>>, objetivo: string): Promise<boolean> {
+  const { data: soyDev } = await sb.rpc("fn_es_desarrollador");
+  if (soyDev === true) return false;
+  const { data: roles } = await sb.from("usuario_roles").select("roles(nombre)").eq("usuario_id", objetivo);
+  return (roles ?? []).some((r) => (r as unknown as { roles: { nombre: string } | null }).roles?.nombre === "DESARROLLADOR");
+}
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function authAdmin() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) return null;
@@ -45,16 +54,36 @@ export async function POST(req: Request) {
   return NextResponse.json({ id });
 }
 
+export async function GET(req: Request) {
+  const g = await exigirAdmin(); if (g.error) return g.error;
+  const admin = authAdmin();
+  if (!admin) return NextResponse.json({ error: "Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor." }, { status: 501 });
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Falta el usuario" }, { status: 400 });
+  const { data: u } = await g.sb!.from("usuarios").select("id").eq("id", id).maybeSingle();
+  if (!u) return NextResponse.json({ error: "Usuario inexistente" }, { status: 404 });
+  const { data, error } = await admin.auth.admin.getUserById(id);
+  if (error || !data.user) return NextResponse.json({ error: error?.message ?? "No se encontró la cuenta de acceso" }, { status: 404 });
+  return NextResponse.json({ email: data.user.email ?? "", protegido: await protegido(g.sb!, id) });
+}
+
 export async function PATCH(req: Request) {
   const g = await exigirAdmin(); if (g.error) return g.error;
   const admin = authAdmin();
   if (!admin) return NextResponse.json({ error: "Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor." }, { status: 501 });
-  const b = (await req.json().catch(() => null)) as { id?: string; password?: string } | null;
-  if (!b?.id || !b.password || b.password.length < 8) return NextResponse.json({ error: "Indicá el usuario y una contraseña de al menos 8 caracteres." }, { status: 400 });
+  const b = (await req.json().catch(() => null)) as { id?: string; password?: string; email?: string } | null;
+  if (!b?.id || (b.password === undefined && b.email === undefined)) return NextResponse.json({ error: "Indicá el usuario y qué cambiar." }, { status: 400 });
+  if (b.password !== undefined && b.password.length < 8) return NextResponse.json({ error: "La contraseña debe tener al menos 8 caracteres." }, { status: 400 });
+  const email = b.email?.trim().toLowerCase();
+  if (b.email !== undefined && (!email || !EMAIL.test(email))) return NextResponse.json({ error: "El e-mail no es válido." }, { status: 400 });
   // Debe ser un usuario que el administrador pueda ver (existe en public.usuarios).
   const { data: u } = await g.sb!.from("usuarios").select("id").eq("id", b.id).maybeSingle();
   if (!u) return NextResponse.json({ error: "Usuario inexistente" }, { status: 404 });
-  const { error } = await admin.auth.admin.updateUserById(b.id, { password: b.password });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (await protegido(g.sb!, b.id)) return NextResponse.json({ error: "Solo un usuario DESARROLLADOR puede cambiar el e-mail o la contraseña de otro DESARROLLADOR." }, { status: 403 });
+  const cambios: { password?: string; email?: string; email_confirm?: boolean } = {};
+  if (b.password !== undefined) cambios.password = b.password;
+  if (email) { cambios.email = email; cambios.email_confirm = true; }
+  const { error } = await admin.auth.admin.updateUserById(b.id, cambios);
+  if (error) return NextResponse.json({ error: /already|registered|exists/i.test(error.message) ? "Ya existe otra cuenta con ese e-mail." : error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }

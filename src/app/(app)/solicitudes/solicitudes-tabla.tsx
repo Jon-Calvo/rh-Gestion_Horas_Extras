@@ -20,6 +20,7 @@ export function SolicitudesTabla({ filas, zona, verImportes, exportar }: { filas
   const router = useRouter();
   const [q, setQ] = useState("");
   const [sit, setSit] = useState<"" | Situacion>("");
+  const [masImportes, setMasImportes] = useState(false);
   const datos = useMemo(() => filas.filter((f) => !sit || f.situacion === sit), [filas, sit]);
 
   const columns = useMemo<ColumnDef<SolicitudResumen>[]>(() => [
@@ -36,8 +37,15 @@ export function SolicitudesTabla({ filas, zona, verImportes, exportar }: { filas
     { accessorKey: "horas_aprobadas", header: "Hs aprob.", cell: (c) => <div className="text-right text-success">{c.getValue<number | undefined>() === undefined ? "—" : fmtHoras(c.getValue<number>())}</div> },
     { accessorKey: "horas_rechazadas", header: "Hs rech.", cell: (c) => { const v = c.getValue<number | undefined>(); return <div className={`text-right ${v ? "text-danger" : "text-muted"}`}>{v === undefined ? "—" : fmtHoras(v)}</div>; } },
     { id: "obs", header: "Obs.", enableSorting: false, accessorFn: (r) => r.observacion ?? "", cell: (c) => <ObservacionBtn texto={c.row.original.observacion} titulo={`Observación · Solicitud ${c.row.original.numero ?? ""}`} /> },
-    ...(verImportes ? [{ accessorKey: "total_importe_solicitud", header: "Importe", cell: (c: any) => <div className="text-right">{fmtImporte(c.getValue(), c.row.original.moneda)}</div> } as ColumnDef<SolicitudResumen>] : []),
-  ], [zona, verImportes]);
+    ...(verImportes ? [
+      { accessorKey: "total_importe_solicitud", header: "Importe", cell: (c) => <div className="text-right">{fmtImporte(c.getValue<number | null>(), c.row.original.moneda)}</div> } as ColumnDef<SolicitudResumen>,
+      { accessorKey: "importe_aprobado", header: "Imp. aprob.", cell: (c) => <div className="text-right text-success font-medium">{fmtImporte(c.getValue<number | null>(), c.row.original.moneda)}</div> } as ColumnDef<SolicitudResumen>,
+      ...(masImportes ? [
+        { accessorKey: "importe_rechazado", header: "Imp. rech.", cell: (c) => <div className="text-right text-danger">{fmtImporte(c.getValue<number | null>(), c.row.original.moneda)}</div> } as ColumnDef<SolicitudResumen>,
+        { accessorKey: "importe_pendiente", header: "Imp. pend.", cell: (c) => <div className="text-right text-warning">{fmtImporte(c.getValue<number | null>(), c.row.original.moneda)}</div> } as ColumnDef<SolicitudResumen>,
+      ] : []),
+    ] : []),
+  ], [zona, verImportes, masImportes]);
 
   const toast = useToast();
   const [exportando, setExportando] = useState(false);
@@ -58,6 +66,7 @@ export function SolicitudesTabla({ filas, zona, verImportes, exportar }: { filas
           <option value="">Todos los estados</option>{SITS.map((x) => <option key={x} value={x}>{SITUACION_LABEL[x]}</option>)}
         </select>
         <div className="flex-1" />
+        {verImportes && <button className="btn btn-secondary" onClick={() => setMasImportes(!masImportes)} aria-pressed={masImportes}>{masImportes ? "Ocultar rechazado y pendiente" : "Ver importe rechazado y pendiente"}</button>}
         {exportar && <button className="btn btn-secondary" onClick={csv} disabled={datos.length === 0 || exportando} title="Una fila por empleado, con horas e importes por banda horaria">{exportando ? <span className="spinner" /> : <Icon name="download" size={16} />} Exportar CSV (detalle)</button>}
       </div>
       {filas.length === 0 ? <Vacio titulo="No hay solicitudes para mostrar" detalle="Si esperabas ver alguna, revisá tu alcance de visibilidad con un administrador." />

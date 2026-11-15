@@ -38,6 +38,7 @@ export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandas
   const hayPendientes = vigentes.some((e) => e.estado_aprobacion === "PENDIENTE_APROBACION");
 
   const solo = (nombre: string, args: Record<string, unknown>, ok: string) => rpc(nombre, args, ok);
+  const [verMasImp, setVerMasImp] = useState(false);
   const [regIngreso, setRegIngreso] = useState<RegistroIngreso | null>(null);
   const registrar = (se: EmpleadoDetalle, r: EstadoAsistencia) => setRegIngreso({ se: se.solicitud_empleado_id, nombre: se.nombre_completo, resultado: r });
   const confirmarIngreso = async (r: RegistroIngreso, iso: string, obs: string) => {
@@ -76,9 +77,13 @@ export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandas
           <div><div className="label">Horas</div><div className="text-2xl font-bold">{fmtHoras(sol.total_horas_solicitud)}</div>
             {sol.horas_aprobadas !== undefined && <div className="text-xs mt-1"><span className="text-success font-semibold">{fmtHoras(sol.horas_aprobadas)} aprob.</span> · <span className="text-danger font-semibold">{fmtHoras(sol.horas_rechazadas)} rech.</span> · <span className="text-warning font-semibold">{fmtHoras(sol.horas_pendientes)} pend.</span></div>}</div>
           {verImportes && <>
-            <div className="col-span-2"><div className="label">Importe total</div><div className="text-xl font-bold">{fmtImporte(sol.total_importe_solicitud, sol.moneda)}</div></div>
-            <div><div className="label">Aprobado</div><div className="text-sm font-semibold" style={{ color: "var(--success)" }}>{fmtImporte(sol.importe_aprobado)}</div></div>
-            <div><div className="label">Pendiente</div><div className="text-sm font-semibold" style={{ color: "var(--warning)" }}>{fmtImporte(sol.importe_pendiente)}</div></div>
+            <div><div className="label">Importe total</div><div className="text-lg font-bold">{fmtImporte(sol.total_importe_solicitud, sol.moneda)}</div></div>
+            <div><div className="label">Aprobado</div><div className="text-lg font-bold text-success">{fmtImporte(sol.importe_aprobado, sol.moneda)}</div></div>
+            {verMasImp && <>
+              <div><div className="label">Rechazado</div><div className="text-sm font-semibold text-danger">{fmtImporte(sol.importe_rechazado, sol.moneda)}</div></div>
+              <div><div className="label">Pendiente</div><div className="text-sm font-semibold text-warning">{fmtImporte(sol.importe_pendiente, sol.moneda)}</div></div>
+            </>}
+            <div className="col-span-2"><button type="button" className="btn btn-ghost btn-sm" onClick={() => setVerMasImp(!verMasImp)} aria-expanded={verMasImp}>{verMasImp ? "Ocultar rechazado y pendiente" : "Ver rechazado y pendiente"}</button></div>
           </>}
         </div>
       </div>

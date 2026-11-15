@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { mensajeError } from "@/lib/errors";
 import { decimalATexto, parseDecimal } from "@/lib/format";
 import { DIAS_CORTO, DIAS_SEMANA } from "@/lib/types";
+import { ImportarFeriados } from "./importar-feriados";
 
 type Fila = Record<string, unknown>;
 type Tipo = "text" | "number" | "date" | "time" | "bool" | "color" | "select" | "ref" | "dia";
@@ -41,12 +42,14 @@ export function CatalogosAdmin({ datos }: { datos: Record<string, Fila[]> }) {
 
 function Tabla({ def, filas, datos }: { def: Def; filas: Fila[]; datos: Record<string, Fila[]> }) {
   const [edit, setEdit] = useState<Fila | "nuevo" | null>(null);
+  const [importando, setImportando] = useState(false);
   const ord = useMemo(() => [...filas].sort((a, b) => String(a[def.orden] ?? "").localeCompare(String(b[def.orden] ?? ""), "es", { numeric: true })), [filas, def.orden]);
   const refTxt = (c: Col, v: unknown) => { const f = (datos[c.ref!] ?? []).find((x) => x.id === v); return f ? String(f[c.refLabel!]) : "—"; };
   const mostrar = (c: Col, f: Fila) => {
     const v = f[c.k];
     if (c.tipo === "bool") return <Badge tono={v ? "verde" : "gris"}>{v ? "Sí" : "No"}</Badge>;
     if (c.tipo === "ref") return refTxt(c, v);
+    if (c.tipo === "date") return v ? String(v).split("-").reverse().join("/") : "—";
     if (c.tipo === "time") return v ? String(v).slice(0, 5) : "—";
     if (c.tipo === "dia") return v === undefined || v === null ? "—" : `${v} · ${DIAS_CORTO[Number(v) - 1]}`;
     if (c.tipo === "number") return v === null || v === undefined || v === "" ? "—" : decimalATexto(v as number);
@@ -55,10 +58,11 @@ function Tabla({ def, filas, datos }: { def: Def; filas: Fila[]; datos: Record<s
   };
   return (
     <>
-      <div className="flex justify-end mb-3"><button className="btn btn-primary" onClick={() => setEdit("nuevo")}>+ Agregar</button></div>
+      <div className="flex justify-end gap-2 mb-3">{def.id === "feriados" && <button className="btn btn-secondary" onClick={() => setImportando(true)}>Importar Excel / CSV</button>}<button className="btn btn-primary" onClick={() => setEdit("nuevo")}>+ Agregar</button></div>
       <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="tbl"><thead><tr>{def.cols.filter((c) => c.lista).map((c) => <th key={c.k}>{c.t}</th>)}<th /></tr></thead>
         <tbody>{ord.length === 0 ? <tr><td colSpan={def.cols.length + 1} className="text-center text-muted py-8">Sin registros</td></tr> : ord.map((f) => (
           <tr key={String(f.id)}>{def.cols.filter((c) => c.lista).map((c) => <td key={c.k}>{mostrar(c, f)}</td>)}<td className="text-right"><button className="btn btn-secondary btn-sm" onClick={() => setEdit(f)}>Editar</button></td></tr>))}</tbody></table></div></div>
+      {importando && <ImportarFeriados existentes={filas} onCerrar={() => setImportando(false)} />}
       {edit && <Form def={def} fila={edit === "nuevo" ? null : edit} datos={datos} onCerrar={() => setEdit(null)} />}
     </>
   );

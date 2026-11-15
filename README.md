@@ -3,11 +3,19 @@
 Interfaz para el esquema **Horas Extras V2.1**. Toda la lógica de negocio vive en la base (22 funciones `rpc_*`, RLS, triggers); la interfaz solo las invoca y muestra los mensajes de error de la base. Los botones que se ven según permisos son una ayuda visual: la autoridad es siempre la base.
 
 ## Pantallas
-Ingreso · Panel · Solicitudes (lista, nueva, detalle con aprobación por empleado, control de ingreso, reemplazos, rectificación, cronología) · Aprobaciones · Control de ingreso · Empleados (+ importación xlsx/CSV) · Ranking · Usuarios y permisos · Catálogos · Configuración y apariencia · Auditoría. Modo claro / oscuro / según dispositivo; adaptado a PC, tablet y celular.
+Ingreso · Panel · Solicitudes (lista, nueva, detalle con aprobación por empleado, control de ingreso, reemplazos, rectificación, cronología) · Aprobaciones · Control de ingreso · Empleados (+ importación xlsx/CSV) · Ranking · Estadísticas · Usuarios y permisos · Catálogos · Configuración y apariencia · Auditoría. Modo claro / oscuro / según dispositivo; adaptado a PC, tablet y celular.
 
 ## Orden de actualización (cambios de noviembre)
 1. Aplicá primero la migración `0002_bandas_por_dia_y_observacion_ingreso.sql` en Supabase (ver `INSTRUCCIONES_MIGRACION_0002.md`).
 2. Después publicá esta versión de la interfaz. Sin la migración, las bandas no aceptan días, el control de ingreso no guarda observación y no aparece el desglose de aprobados/rechazados.
+
+## Novedades (tercera tanda)
+- **Mensajes sobre formularios abiertos**: los avisos usan la capa superior del navegador (popover), así se ven nítidos sobre cualquier ventana. Mientras hay un formulario abierto no se pueden clickear, pero se cierran solos.
+- **Importes**: en el detalle y en la lista se ve total y aprobado; un botón muestra rechazado y pendiente.
+- **Estadísticas** (`/estadisticas`): mes en curso por defecto, selector de mes. KPIs, comparativo contra el mes anterior (valor y %), tendencia de 6 meses, Top 5 procesos / motivos / sectores por horas e importe aprobado, Top 5 empleados, mix productivo/improductivo. Los KPIs de importe solo los ven quienes tienen permiso de importes. Se cuentan solicitudes en aprobación, aprobadas, rechazadas y finalizadas; el mes se toma por fecha de inicio; las horas aprobadas son las programadas (no se descuenta «no se presentó»). Los importes no se suman entre monedas: se muestra la principal y un aviso de las otras. No requiere migración.
+- **Feriados**: botón «Importar Excel / CSV» (columnas Fecha, Descripción; con vista previa; actualiza si la fecha ya existe).
+- **Usuarios**: se ve y se edita el e-mail (requiere `SUPABASE_SERVICE_ROLE_KEY`). Un admin que no es DESARROLLADOR no puede modificar e-mail ni clave de un DESARROLLADOR.
+- Pruebas de lógica: `npx tsx --tsconfig tsconfig.json tests/kpis.test.ts` y `tests/tabular.test.ts`.
 
 ## Decimales
 En los campos decimales podés escribir **coma o punto** (`1,5` o `1.5`); se guardan igual. No uses separador de miles. En el CSV los números salen con coma decimal.
@@ -34,6 +42,6 @@ npm run dev
 5. Ingresá con el usuario DESARROLLADOR que creaste. Desde «Usuarios y permisos» das de alta al resto.
 
 ## Qué se verificó y qué no
-- Verificado: `tsc` sin errores y `next build` exitoso; capturas de ingreso, control de ingreso (filtros y ventana de registro), aprobaciones (IB y color) y edición de bandas, renderizadas con datos simulados; el armado del CSV probado con datos simulados.
+- Verificado: `tsc` sin errores y `next build` exitoso; capturas de Estadísticas (claro PC / oscuro celular, datos simulados), lógica de KPIs y lectura de Excel/CSV con pruebas propias; capturas de ingreso, control de ingreso (filtros y ventana de registro), aprobaciones (IB y color) y edición de bandas, renderizadas con datos simulados; el armado del CSV probado con datos simulados.
 - **No verificado**: funcionamiento contra tu Supabase real (login, RPC, RLS, importación, alta de usuarios), ni el resto de las pantallas renderizadas con datos. Hacé una pasada con usuarios de prueba (admin, aprobador, control de ingreso, sin permisos, inactivo) antes de usarlo en producción.
 - Los tipos de `src/lib/types.ts` están escritos a mano según el esquema; si cambia el esquema, actualizarlos.
