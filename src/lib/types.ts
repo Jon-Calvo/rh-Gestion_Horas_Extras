@@ -26,7 +26,7 @@ export interface ConfigGeneral {
   retencion_auditoria_meses: number | null; zona_horaria: string; ultimo_reseteo_ranking: string | null;
 }
 export interface ConfigApariencia {
-  id: number; nombre_empresa: string | null; logo_url: string | null; color_primario: string; color_primario_hover: string;
+  id: number; nombre_empresa: string | null; logo_url: string | null; logo_url_secundario?: string | null; subtitulo_app?: string | null; nombre_empresa_secundario?: string | null; color_primario: string; color_primario_hover: string;
   color_secundario: string; color_acento: string; color_exito: string; color_advertencia: string; color_error: string; tema_predeterminado: TemaApp;
 }
 

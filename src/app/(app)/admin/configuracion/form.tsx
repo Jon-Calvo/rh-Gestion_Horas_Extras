@@ -24,6 +24,9 @@ export function ConfiguracionForm({ general, apariencia }: { general: R | null; 
     if (e1) { setOcupado(false); toast("error", mensajeError(e1)); return; }
     const { error: e2 } = await sb.from("configuracion_apariencia").update({
       nombre_empresa: a.nombre_empresa || null, logo_url: a.logo_url || null, tema_predeterminado: a.tema_predeterminado,
+      // Columnas de la migración 0003: solo se envían si ya existen en la base.
+      ...("subtitulo_app" in a ? { subtitulo_app: (a.subtitulo_app ?? "").trim() || null } : {}),
+      ...("logo_url_secundario" in a ? { logo_url_secundario: a.logo_url_secundario || null, nombre_empresa_secundario: a.nombre_empresa_secundario || null } : {}),
       ...Object.fromEntries(COLORES.map(([k]) => [k, a[k]])),
     }).eq("id", 1);
     setOcupado(false);
@@ -45,8 +48,15 @@ export function ConfiguracionForm({ general, apariencia }: { general: R | null; 
       </section>
       <section className="card p-4 space-y-4"><h2 className="font-semibold">Apariencia</h2>
         <div className="grid sm:grid-cols-2 gap-4">
-          <Campo etiqueta="Nombre de la empresa"><input className="input" value={a.nombre_empresa ?? ""} onChange={(e) => setA({ ...a, nombre_empresa: e.target.value })} /></Campo>
-          <Campo etiqueta="URL del logo"><input className="input" type="url" value={a.logo_url ?? ""} onChange={(e) => setA({ ...a, logo_url: e.target.value })} /></Campo>
+          <Campo etiqueta="Nombre 1 (principal)"><input className="input" value={a.nombre_empresa ?? ""} onChange={(e) => setA({ ...a, nombre_empresa: e.target.value })} /></Campo>
+          <Campo etiqueta="URL del logo 1"><input className="input" type="url" value={a.logo_url ?? ""} onChange={(e) => setA({ ...a, logo_url: e.target.value })} /></Campo>
+          {"subtitulo_app" in a
+            ? <Campo etiqueta="Texto gris debajo del nombre 1" ayuda="Vacío = «Horas extras»."><input className="input" maxLength={60} placeholder="Horas extras" value={a.subtitulo_app ?? ""} onChange={(e) => setA({ ...a, subtitulo_app: e.target.value })} /></Campo>
+            : <p className="sm:col-span-2 text-sm text-muted">El texto gris editable se habilita al aplicar la migración 0004 en Supabase.</p>}
+          {"logo_url_secundario" in a ? (<>
+            <Campo etiqueta="Nombre 2 (opcional)" ayuda="Se muestra con el logo 2 al pie del menú y en la pantalla de ingreso."><input className="input" value={a.nombre_empresa_secundario ?? ""} onChange={(e) => setA({ ...a, nombre_empresa_secundario: e.target.value })} /></Campo>
+            <Campo etiqueta="URL del logo 2 (opcional)"><input className="input" type="url" value={a.logo_url_secundario ?? ""} onChange={(e) => setA({ ...a, logo_url_secundario: e.target.value })} /></Campo>
+          </>) : <p className="sm:col-span-2 text-sm text-muted">El segundo logo y nombre se habilitan al aplicar la migración 0003 en Supabase.</p>}
           <Campo etiqueta="Tema predeterminado"><select className="input" value={a.tema_predeterminado ?? "SISTEMA"} onChange={(e) => setA({ ...a, tema_predeterminado: e.target.value })}><option value="SISTEMA">Según el dispositivo</option><option value="CLARO">Claro</option><option value="OSCURO">Oscuro</option></select></Campo>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{COLORES.map(([k, t]) => (

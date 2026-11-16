@@ -17,7 +17,15 @@ export default async function LoginPage() {
           <h2 className="text-4xl font-bold leading-tight">Solicitudes de horas extras,<br />del pedido al control de ingreso.</h2>
           <p className="mt-4 text-white/80 max-w-md">Pedí, aprobá y controlá horas extras con permisos por área, sector y proceso.</p>
         </div>
-        <p className="text-sm text-white/60">Acceso solo para personal autorizado.</p>
+        <div className="space-y-4">
+          {(ap?.logo_url_secundario || ap?.nombre_empresa_secundario) && (
+            <div className="flex items-center gap-3 font-semibold">
+              {ap?.logo_url_secundario && /* eslint-disable-next-line @next/next/no-img-element */ <img src={ap.logo_url_secundario} alt="" className="h-10 w-10 rounded-lg bg-white/20 object-contain" />}
+              {ap?.nombre_empresa_secundario}
+            </div>
+          )}
+          <p className="text-sm text-white/60">Acceso solo para personal autorizado.</p>
+        </div>
       </div>
       <div className="grid place-items-center p-6"><LoginForm /></div>
     </div>

@@ -17,6 +17,10 @@ Ingreso · Panel · Solicitudes (lista, nueva, detalle con aprobación por emple
 - **Usuarios**: se ve y se edita el e-mail (requiere `SUPABASE_SERVICE_ROLE_KEY`). Un admin que no es DESARROLLADOR no puede modificar e-mail ni clave de un DESARROLLADOR.
 - Pruebas de lógica: `npx tsx --tsconfig tsconfig.json tests/kpis.test.ts` y `tests/tabular.test.ts`.
 
+## Novedades (cuarta tanda)
+- **Segundo logo y segundo nombre** (Configuración → Apariencia): el encabezado del menú conserva logo 1, nombre 1 y el texto gris; el logo 2 y el nombre 2 van al pie del menú y en la pantalla de ingreso. El **texto gris** (antes fijo «Horas extras») es editable. Requieren las migraciones `0003` (logo 2 y nombre 2) y `0004` (texto gris); sin ellas la pantalla funciona igual y avisa que falta.
+- **Contadores en el menú**: «Aprobaciones» (solicitudes en aprobación dentro de tu alcance) y «Control de ingreso» (aprobadas pendientes de control) muestran un número rojo. Se actualizan al navegar, al volver a la pestaña y cada 60 s (`/api/pendientes`).
+
 ## Decimales
 En los campos decimales podés escribir **coma o punto** (`1,5` o `1.5`); se guardan igual. No uses separador de miles. En el CSV los números salen con coma decimal.
 

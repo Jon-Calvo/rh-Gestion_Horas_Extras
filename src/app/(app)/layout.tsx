@@ -18,8 +18,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/", label: "Panel", icon: "home", grupo: "" },
     { href: "/solicitudes", label: "Solicitudes", icon: "list", grupo: "Operación" },
     ...(puedeCrear ? [{ href: "/solicitudes/nueva", label: "Nueva solicitud", icon: "plus", grupo: "Operación" }] : []),
-    ...(puedeAprobar ? [{ href: "/aprobaciones", label: "Aprobaciones", icon: "check", grupo: "Operación" }] : []),
-    ...(f.puedeControlIngreso ? [{ href: "/control-ingreso", label: "Control de ingreso", icon: "door", grupo: "Operación" }] : []),
+    ...(puedeAprobar ? [{ href: "/aprobaciones", label: "Aprobaciones", icon: "check", grupo: "Operación", badge: "aprobaciones" as const }] : []),
+    ...(f.puedeControlIngreso ? [{ href: "/control-ingreso", label: "Control de ingreso", icon: "door", grupo: "Operación", badge: "control" as const }] : []),
     { href: "/estadisticas", label: "Estadísticas", icon: "chart", grupo: "Operación" },
     { href: "/empleados", label: "Empleados", icon: "users", grupo: "Personal" },
     { href: "/ranking", label: "Ranking", icon: "trophy", grupo: "Personal" },
@@ -33,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ];
   const ap = await getApariencia();
   return (
-    <AppShell nav={nav} nombre={s.nombre} roles={s.roles.map((r) => ROL_LABEL[r] ?? r)} empresa={ap?.nombre_empresa || "Mi empresa"} logoUrl={ap?.logo_url ?? null}>
+    <AppShell nav={nav} nombre={s.nombre} roles={s.roles.map((r) => ROL_LABEL[r] ?? r)} marca={{ empresa: ap?.nombre_empresa || "Mi empresa", logo: ap?.logo_url ?? null, empresa2: ap?.nombre_empresa_secundario ?? null, subtitulo: ap?.subtitulo_app?.trim() || "Horas extras", logo2: ap?.logo_url_secundario ?? null }}>
       {children}
     </AppShell>
   );

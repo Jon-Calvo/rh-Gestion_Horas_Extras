@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Icon } from "./icons";
 
-export interface NavItem { href: string; label: string; icon: string; grupo: string }
+export interface NavItem { href: string; label: string; icon: string; grupo: string; badge?: "aprobaciones" | "control" }
+export interface Marca2 { empresa: string; logo: string | null; empresa2: string | null; logo2: string | null; subtitulo: string }
 type Tema = "claro" | "oscuro" | "sistema";
 
 function aplicarTema(t: Tema) {
@@ -47,7 +48,7 @@ export function ThemeToggle() {
   );
 }
 
-export function AppShell({ nav, nombre, roles, empresa, logoUrl, children }: { nav: NavItem[]; nombre: string; roles: string[]; empresa: string; logoUrl: string | null; children: React.ReactNode }) {
+export function AppShell({ nav, nombre, roles, marca, children }: { nav: NavItem[]; nombre: string; roles: string[]; marca: Marca2; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
@@ -55,6 +56,21 @@ export function AppShell({ nav, nombre, roles, empresa, logoUrl, children }: { n
   useEffect(() => setAbierto(false), [pathname]);
   useEffect(() => { try { setColapsado(localStorage.getItem("nav-colapsado") === "1"); } catch { /* ignorar */ } }, []);
   const toggleColapsado = () => setColapsado((c) => { try { localStorage.setItem("nav-colapsado", c ? "0" : "1"); } catch { /* ignorar */ } return !c; });
+
+  const [pend, setPend] = useState<Record<string, number>>({});
+  const hayBadge = nav.some((n) => n.badge);
+  useEffect(() => {
+    if (!hayBadge) return;
+    let vivo = true;
+    const cargar = async () => {
+      try { const r = await fetch("/api/pendientes", { cache: "no-store" }); if (r.ok && vivo) setPend(await r.json()); } catch { /* sin red: se conserva el último valor */ }
+    };
+    cargar();
+    const t = setInterval(cargar, 60000);
+    const f = () => { if (document.visibilityState === "visible") cargar(); };
+    document.addEventListener("visibilitychange", f); window.addEventListener("focus", f);
+    return () => { vivo = false; clearInterval(t); document.removeEventListener("visibilitychange", f); window.removeEventListener("focus", f); };
+  }, [hayBadge, pathname]);
 
   const salir = async () => { await createClient().auth.signOut(); router.replace("/login"); router.refresh(); };
   const activo = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/"));
@@ -71,7 +87,14 @@ export function AppShell({ nav, nombre, roles, empresa, logoUrl, children }: { n
               <li key={n.href}>
                 <Link href={n.href} title={colapsado ? n.label : undefined} aria-current={activo(n.href) ? "page" : undefined}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${activo(n.href) ? "bg-primary text-white shadow-sm" : "text-muted hover:bg-surface-2 hover:text-fg"} ${colapsado ? "justify-center" : ""}`}>
-                  <Icon name={n.icon} /><span className={colapsado ? "sr-only" : ""}>{n.label}</span>
+                  <span className="relative inline-flex"><Icon name={n.icon} />
+                    {n.badge && (pend[n.badge] ?? 0) > 0 && colapsado && <span className="absolute -top-1.5 -right-2 min-w-4 h-4 px-1 rounded-full bg-danger text-white text-[0.62rem] font-bold grid place-items-center" aria-hidden>{pend[n.badge] > 99 ? "99+" : pend[n.badge]}</span>}
+                  </span>
+                  <span className={colapsado ? "sr-only" : "flex-1"}>{n.label}</span>
+                  {n.badge && (pend[n.badge] ?? 0) > 0 && (
+                    <span className={colapsado ? "sr-only" : "min-w-5 h-5 px-1.5 rounded-full bg-danger text-white text-xs font-bold grid place-items-center"}
+                      aria-label={`${pend[n.badge]} pendientes`}>{pend[n.badge] > 99 ? "99+" : pend[n.badge]}</span>
+                  )}
                 </Link>
               </li>
             ))}
@@ -82,15 +105,23 @@ export function AppShell({ nav, nombre, roles, empresa, logoUrl, children }: { n
   );
   const Marca = (
     <div className={`flex items-center gap-2.5 px-4 h-16 border-b ${colapsado ? "justify-center" : ""}`}>
-      {logoUrl ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={logoUrl} alt="" className="h-8 w-8 rounded-lg object-contain" /> : <div className="h-8 w-8 rounded-lg bg-primary text-white grid place-items-center font-bold text-sm">HE</div>}
-      {!colapsado && <div className="leading-tight min-w-0"><div className="font-bold text-sm truncate">{empresa}</div><div className="text-[0.7rem] text-muted">Horas extras</div></div>}
+      {marca.logo ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={marca.logo} alt="" className="h-8 w-8 rounded-lg object-contain shrink-0" /> : <div className="h-8 w-8 rounded-lg bg-primary text-white grid place-items-center font-bold text-sm shrink-0">HE</div>}
+      {!colapsado && <div className="leading-tight min-w-0"><div className="font-bold text-sm truncate" title={marca.empresa}>{marca.empresa}</div><div className="text-[0.7rem] text-muted truncate" title={marca.subtitulo}>{marca.subtitulo}</div></div>}
     </div>
   );
+
+  // Segundo logo y nombre: al pie del menú, discretos.
+  const Pie = (marca.logo2 || marca.empresa2) ? (
+    <div className={`mx-3 mb-1 pt-3 border-t flex items-center gap-2.5 ${colapsado ? "justify-center" : ""}`} title={marca.empresa2 ?? undefined}>
+      {marca.logo2 && /* eslint-disable-next-line @next/next/no-img-element */ <img src={marca.logo2} alt="" className="h-7 w-7 rounded-md object-contain shrink-0" />}
+      {!colapsado && marca.empresa2 && <span className="text-xs text-muted font-medium truncate">{marca.empresa2}</span>}
+    </div>
+  ) : null;
 
   return (
     <div className="min-h-dvh">
       <aside className={`hidden lg:flex fixed inset-y-0 left-0 z-30 flex-col bg-surface border-r transition-[width] ${colapsado ? "w-[4.5rem]" : "w-64"}`}>
-        {Marca}{Menu}
+        {Marca}{Menu}{Pie}
         <button onClick={toggleColapsado} className="m-3 btn btn-ghost btn-sm justify-center" aria-label={colapsado ? "Expandir menú" : "Contraer menú"}>
           <span className={`transition ${colapsado ? "rotate-180" : ""}`}><Icon name="chevron" size={16} /></span>{!colapsado && "Contraer"}
         </button>
@@ -98,7 +129,7 @@ export function AppShell({ nav, nombre, roles, empresa, logoUrl, children }: { n
 
       {abierto && <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setAbierto(false)} aria-hidden />}
       <aside className={`lg:hidden fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] flex flex-col bg-surface border-r transition-transform ${abierto ? "translate-x-0" : "-translate-x-full"}`} aria-hidden={!abierto}>
-        {Marca}{Menu}
+        {Marca}{Menu}{Pie}
       </aside>
 
       <div className={`transition-[padding] ${colapsado ? "lg:pl-[4.5rem]" : "lg:pl-64"}`}>
