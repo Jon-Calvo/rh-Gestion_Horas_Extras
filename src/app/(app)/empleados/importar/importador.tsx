@@ -6,11 +6,12 @@ import { mensajeError } from "@/lib/errors";
 import { parseDecimal } from "@/lib/format";
 import { leerMatriz, norm } from "@/lib/tabular";
 
-const COLS = ["legajo", "nombre_completo", "categoria", "area", "sector", "proceso", "estado", "ib", "ranking_real"] as const;
+const COLS = ["legajo", "nombre_completo", "categoria", "area", "sector", "proceso", "estado", "ib", "ranking_real", "tipo"] as const;
 type Fila = Record<(typeof COLS)[number], string>;
 interface Res { n: number; legajo: string; ok: boolean; msg?: string }
 
-const ALIAS: Record<string, (typeof COLS)[number]> = { legajo: "legajo", nombre: "nombre_completo", nombre_completo: "nombre_completo", categoria: "categoria", area: "area", sector: "sector", proceso: "proceso", estado: "estado", ib: "ib", ranking_real: "ranking_real", ranking: "ranking_real" };
+const ALIAS: Record<string, (typeof COLS)[number]> = { legajo: "legajo", nombre: "nombre_completo", nombre_completo: "nombre_completo", categoria: "categoria", area: "area", sector: "sector", proceso: "proceso", estado: "estado", ib: "ib", ranking_real: "ranking_real", ranking: "ranking_real", tipo: "tipo", tipo_de_empleado: "tipo", tipo_empleado: "tipo", tipo_pago: "tipo", jornal_mensual: "tipo", modalidad: "tipo" };
+const TIPOS: Record<string, string> = { jornal: "JORNAL", jornalero: "JORNAL", mensual: "MENSUAL", mensualizado: "MENSUAL" };
 
 export function Importador() {
   const [filas, setFilas] = useState<Fila[]>([]);
@@ -37,9 +38,12 @@ export function Importador() {
     for (let i = 0; i < filas.length; i++) {
       const f = filas[i];
       if (f.ranking_real.trim() !== "" && parseDecimal(f.ranking_real) === null) { out.push({ n: i + 2, legajo: f.legajo, ok: false, msg: `ranking_real "${f.ranking_real}" no es un número (usá coma o punto)` }); setRes([...out]); continue; }
+      const tipoNorm = f.tipo.trim() ? TIPOS[norm(f.tipo)] : undefined;
+      if (f.tipo.trim() && !tipoNorm) { out.push({ n: i + 2, legajo: f.legajo, ok: false, msg: `tipo "${f.tipo}" no es válido (debe ser Jornal o Mensual)` }); setRes([...out]); continue; }
       const { error } = await sb.rpc("rpc_importar_empleado_excel", {
         p_legajo: f.legajo, p_nombre_completo: f.nombre_completo, p_categoria_codigo: f.categoria, p_area_nombre: f.area, p_sector_nombre: f.sector,
         p_proceso_nombre: f.proceso, p_estado: f.estado || "ACTIVO", p_ib_nombre: f.ib || null, p_ranking_horas_real: parseDecimal(f.ranking_real),
+        ...(tipoNorm ? { p_tipo_pago: tipoNorm } : {}),
       });
       out.push({ n: i + 2, legajo: f.legajo, ok: !error, msg: error ? mensajeError(error) : undefined });
       setRes([...out]);
@@ -48,7 +52,7 @@ export function Importador() {
   };
 
   const plantilla = () => {
-    const csv = "﻿" + COLS.join(";") + "\r\n" + "1001;Ana Pérez;OP1;Producción;Línea 1;Armado;ACTIVO;;\r\n";
+    const csv = "﻿" + COLS.join(";") + "\r\n" + "1001;Ana Pérez;OP1;Producción;Línea 1;Armado;ACTIVO;;;Jornal\r\n";
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); a.download = "plantilla_empleados.csv"; a.click(); URL.revokeObjectURL(a.href);
   };
   const ok = res.filter((r) => r.ok).length, mal = res.length - ok;
@@ -56,7 +60,7 @@ export function Importador() {
   return (
     <div className="space-y-5 max-w-5xl">
       <div className="card p-5 space-y-3">
-        <p className="text-sm text-muted">Columnas: <code>{COLS.join(", ")}</code>. Área, sector, proceso y categoría deben existir; el IB, si se informa, también. Si el legajo ya existe se actualiza.</p>
+        <p className="text-sm text-muted">Columnas: <code>{COLS.join(", ")}</code>. Área, sector, proceso y categoría deben existir; el IB, si se informa, también. Si el legajo ya existe se actualiza. «tipo» (opcional): <code>Jornal</code> o <code>Mensual</code>; en blanco conserva el tipo actual.</p>
         <div className="flex flex-wrap gap-2 items-center">
           <label className="btn btn-primary cursor-pointer">Elegir archivo<input type="file" accept=".xlsx,.csv,.txt" className="sr-only" onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} /></label>
           <button className="btn btn-secondary" onClick={plantilla}>Descargar plantilla</button>

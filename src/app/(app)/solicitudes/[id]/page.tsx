@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSesion } from "@/lib/session";
 import { getCatalogos } from "@/lib/catalogos";
+import { limitesDe } from "@/components/ui/fecha-hora";
 import { Detalle } from "./detalle";
 import type { AuditoriaNegocio, BandaRanking, DetalleCalculo, EmpleadoDetalle, PermisosScope, SolicitudResumen } from "@/lib/types";
 
@@ -35,7 +36,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
       detalle={(det.data ?? []) as DetalleCalculo[]} bandasHorarias={Object.fromEntries(((bh.data ?? []) as { id: string; descripcion: string }[]).map((b) => [b.id, b.descripcion]))}
       auditoria={(aud.data ?? []) as AuditoriaNegocio[]} zona={s.zona} verImportes={s.flags.puedeVerImportes}
       puedeEliminarCancelar={s.flags.puedeEliminarCancelar} esAdmin={s.flags.esAdmin}
-      diasMax={s.config?.dias_maximos_antiguedad ?? 30}
+      diasMax={s.config?.dias_maximos_antiguedad ?? 30} limites={limitesDe(s.config)}
     />
   );
 }

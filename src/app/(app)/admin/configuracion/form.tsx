@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Campo } from "@/components/ui/misc";
 import { useToast } from "@/components/ui/toast";
 import { mensajeError } from "@/lib/errors";
+import { parseDecimal } from "@/lib/format";
 
 type R = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const COLORES: [string, string][] = [["color_primario", "Primario"], ["color_primario_hover", "Primario (hover)"], ["color_secundario", "Secundario"], ["color_acento", "Acento"], ["color_exito", "Éxito"], ["color_advertencia", "Advertencia"], ["color_error", "Error"]];
@@ -20,6 +21,11 @@ export function ConfiguracionForm({ general, apariencia }: { general: R | null; 
       dias_maximos_antiguedad: Number(g.dias_maximos_antiguedad), emails_activos: !!g.emails_activos, ranking_periodo: g.ranking_periodo,
       control_ingreso_permite_eliminar: !!g.control_ingreso_permite_eliminar, nivel_auditoria_negocio: g.nivel_auditoria_negocio,
       retencion_auditoria_meses: g.retencion_auditoria_meses === "" || g.retencion_auditoria_meses == null ? null : Number(g.retencion_auditoria_meses), zona_horaria: g.zona_horaria,
+      // Columnas de la migración 0005: solo se envían si ya existen en la base.
+      ...("horas_maximas_solicitud" in g ? {
+        horas_maximas_solicitud: g.horas_maximas_solicitud === "" || g.horas_maximas_solicitud == null ? null : parseDecimal(String(g.horas_maximas_solicitud)),
+        minutos_intervalo: Number(g.minutos_intervalo ?? 1), fichadas_redondeo_minutos: Number(g.fichadas_redondeo_minutos ?? 0), fichadas_tolerancia_minutos: Number(g.fichadas_tolerancia_minutos ?? 0),
+      } : {}),
     }).eq("id", 1);
     if (e1) { setOcupado(false); toast("error", mensajeError(e1)); return; }
     const { error: e2 } = await sb.from("configuracion_apariencia").update({
@@ -43,6 +49,16 @@ export function ConfiguracionForm({ general, apariencia }: { general: R | null; 
           <Campo etiqueta="Auditoría de negocio"><select className="input" value={g.nivel_auditoria_negocio ?? "BASICA"} onChange={(e) => setG({ ...g, nivel_auditoria_negocio: e.target.value })}><option value="DESACTIVADA">Desactivada</option><option value="BASICA">Básica</option><option value="COMPLETA">Completa</option></select></Campo>
           <Campo etiqueta="Retención de auditoría (meses)" ayuda="Vacío = sin límite."><input className="input" type="number" min={1} value={g.retencion_auditoria_meses ?? ""} onChange={(e) => setG({ ...g, retencion_auditoria_meses: e.target.value })} /></Campo>
         </div>
+        {"horas_maximas_solicitud" in g ? (
+          <div className="grid sm:grid-cols-2 gap-4 pt-2 border-t">
+            <Campo etiqueta="Máximo de horas seguidas por solicitud" ayuda="Se controla al crear y al modificar las fechas. Vacío = sin límite. Las solicitudes ya cargadas no se tocan."><input className="input" inputMode="decimal" placeholder="Ej.: 24" value={g.horas_maximas_solicitud ?? ""} onChange={(e) => setG({ ...g, horas_maximas_solicitud: e.target.value })} /></Campo>
+            <Campo etiqueta="Minutos disponibles al elegir un horario" ayuda="Paso de los minutos en inicio y fin de la solicitud. Ej.: «Cada 30» muestra :00 y :30."><select className="input" value={g.minutos_intervalo ?? 1} onChange={(e) => setG({ ...g, minutos_intervalo: Number(e.target.value) })}>
+              {[[1, "Cualquier minuto"], [5, "Cada 5 minutos"], [10, "Cada 10 minutos"], [15, "Cada 15 minutos (:00, :15, :30, :45)"], [20, "Cada 20 minutos"], [30, "Cada 30 minutos (:00, :30)"], [60, "Solo horas en punto"]].map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></Campo>
+            <Campo etiqueta="Conciliación: tolerancia (minutos)" ayuda="Si la fichada está a esta cantidad de minutos o menos del límite solicitado, se toma como puntual (0 a 30)."><input className="input" type="number" min={0} max={30} value={g.fichadas_tolerancia_minutos ?? 0} onChange={(e) => setG({ ...g, fichadas_tolerancia_minutos: e.target.value })} /></Campo>
+            <Campo etiqueta="Conciliación: redondeo hacia abajo" ayuda="El tiempo real propuesto se redondea a múltiplos de estos minutos."><select className="input" value={g.fichadas_redondeo_minutos ?? 0} onChange={(e) => setG({ ...g, fichadas_redondeo_minutos: Number(e.target.value) })}>
+              {[[0, "Sin redondeo (minuto exacto)"], [5, "5 minutos"], [10, "10 minutos"], [15, "15 minutos"], [30, "30 minutos"], [60, "1 hora"]].map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></Campo>
+          </div>
+        ) : <p className="text-sm text-muted">El límite de horas, el paso de minutos y la conciliación se habilitan al aplicar la migración 0005 en Supabase.</p>}
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!g.emails_activos} onChange={(e) => setG({ ...g, emails_activos: e.target.checked })} /> Emails activos</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!g.control_ingreso_permite_eliminar} onChange={(e) => setG({ ...g, control_ingreso_permite_eliminar: e.target.checked })} /> Permitir quitar un control de ingreso ya registrado (además requiere el permiso individual)</label>
       </section>

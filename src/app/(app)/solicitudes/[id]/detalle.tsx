@@ -11,15 +11,16 @@ import { IngresoModal, type RegistroIngreso } from "@/components/solicitudes/ing
 import { IbRanking } from "@/components/solicitudes/ranking-chip";
 import { useRpc } from "@/lib/use-accion";
 import { fmtFechaHora, fmtHoras, fmtImporte, isoToLocal, localToIso } from "@/lib/format";
+import { CampoFechaHora, avisoLimite, type LimitesSolicitud } from "@/components/ui/fecha-hora";
 import type { Catalogos } from "@/lib/catalogos";
 import type { AuditoriaNegocio, BandaRanking, DetalleCalculo, EmpleadoDetalle, EstadoAsistencia, PermisosScope, SolicitudResumen } from "@/lib/types";
 
 type Dlg = null | "agregar" | "editar" | "cancelar" | "reabrir" | "rechazarTodos" | { tipo: "rechazar" | "reemplazar" | "rectificar"; se: EmpleadoDetalle };
 
-export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandasHorarias, auditoria, zona, verImportes, puedeEliminarCancelar, esAdmin, diasMax }: {
+export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandasHorarias, auditoria, zona, verImportes, puedeEliminarCancelar, esAdmin, diasMax, limites }: {
   sol: SolicitudResumen; empleados: EmpleadoDetalle[]; permisos: PermisosScope; cat: Catalogos; bandas: BandaRanking[];
   detalle: DetalleCalculo[]; bandasHorarias: Record<string, string>; auditoria: AuditoriaNegocio[]; zona: string; verImportes: boolean;
-  puedeEliminarCancelar: boolean; esAdmin: boolean; diasMax: number;
+  puedeEliminarCancelar: boolean; esAdmin: boolean; diasMax: number; limites: LimitesSolicitud;
 }) {
   const { rpc, ocupado, router } = useRpc();
   const [dlg, setDlg] = useState<Dlg>(null);
@@ -108,7 +109,7 @@ export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandas
                     <td><IbRanking ib={e.ib_descripcion} ranking={e.ranking_horas_al_momento} bandas={bandas} /></td>
                     <td><AprobacionBadge estado={e.estado_aprobacion} />{e.motivo_rechazo && <div className="text-xs text-muted mt-1 max-w-48">{e.motivo_rechazo}</div>}</td>
                     <td><AsistenciaBadge estado={e.estado_asistencia} />{e.fecha_hora_ingreso && <div className="text-xs text-muted">{fmtFechaHora(e.fecha_hora_ingreso, zona)}</div>}{e.observacion_control_ingreso && <div className="text-xs mt-0.5 max-w-48 whitespace-pre-wrap">💬 {e.observacion_control_ingreso}</div>}</td>
-                    <td className="text-right">{fmtHoras(e.total_horas)}</td>
+                    <td className="text-right">{fmtHoras(e.total_horas)}{fmtHoras(e.total_horas)}{e.real_origen && <div className="text-xs text-muted" title={e.real_inicio && e.real_fin ? `${fmtFechaHora(e.real_inicio, zona)} → ${fmtFechaHora(e.real_fin, zona)}` : undefined}>Real: <b>{fmtHoras(e.horas_reales)} h</b>{e.importe_real != null ? ` · ${fmtImporte(e.importe_real, sol.moneda)}` : ""}</div>}</td>
                     {verImportes && <td className="text-right">{fmtImporte(e.total_importe, sol.moneda)}</td>}
                     <td><div className="flex flex-wrap gap-1.5 justify-end">
                       {decidiendo && e.estado_aprobacion !== "APROBADO" && <button className="btn btn-success btn-sm" disabled={!!ocupado} onClick={() => solo("rpc_aprobar_empleado", { p_solicitud_empleado_id: e.solicitud_empleado_id }, "Empleado aprobado")}>Aprobar</button>}
@@ -181,7 +182,7 @@ export function Detalle({ sol, empleados, permisos, cat, bandas, detalle, bandas
         onConfirmar={async (t) => { const r = await rpc("rpc_reabrir_solicitud", { p_solicitud_id: sol.id, p_motivo: t }, "Solicitud reabierta"); if (r.ok) cerrar(); }} />
       <Rectificar abierto={typeof dlg === "object" && dlg !== null && dlg.tipo === "rectificar"} se={typeof dlg === "object" && dlg && dlg.tipo === "rectificar" ? dlg.se : null} ocupado={!!ocupado} onCerrar={cerrar}
         onConfirmar={async (h, m, se) => { const r = await rpc("rpc_rectificar_horas_ranking", { p_solicitud_empleado_id: se.solicitud_empleado_id, p_horas: h, p_motivo: m }, "Rectificación registrada"); if (r.ok) cerrar(); }} />
-      <Editar abierto={dlg === "editar"} onCerrar={cerrar} sol={sol} cat={cat} zona={zona} diasMax={diasMax} rpc={rpc} ocupado={!!ocupado} />
+      <Editar abierto={dlg === "editar"} onCerrar={cerrar} sol={sol} cat={cat} zona={zona} diasMax={diasMax} limites={limites} rpc={rpc} ocupado={!!ocupado} />
     </>
   );
 }
@@ -200,8 +201,8 @@ function Rectificar({ abierto, se, ocupado, onCerrar, onConfirmar }: { abierto: 
   );
 }
 
-function Editar({ abierto, onCerrar, sol, cat, zona, diasMax, rpc, ocupado }: {
-  abierto: boolean; onCerrar: () => void; sol: SolicitudResumen; cat: Catalogos; zona: string; diasMax: number; ocupado: boolean;
+function Editar({ abierto, onCerrar, sol, cat, zona, diasMax, limites, rpc, ocupado }: {
+  abierto: boolean; onCerrar: () => void; sol: SolicitudResumen; cat: Catalogos; zona: string; diasMax: number; limites: LimitesSolicitud; ocupado: boolean;
   rpc: (n: string, a: Record<string, unknown>, ok?: string) => Promise<{ ok: boolean }>;
 }) {
   const [scope, setScope] = useState<Scope>({ area_id: sol.area_id, sector_id: sol.sector_id, proceso_id: sol.proceso_id });
@@ -218,9 +219,10 @@ function Editar({ abierto, onCerrar, sol, cat, zona, diasMax, rpc, ocupado }: {
           <ScopeSelect value={scope} onChange={setScope} areas={cat.areas} sectores={cat.sectores} procesos={cat.procesos} />
           <button className="btn btn-secondary btn-sm" disabled={ocupado || !scope.proceso_id} onClick={() => rpc("rpc_modificar_scope", { p_solicitud_id: sol.id, p_area_id: scope.area_id, p_sector_id: scope.sector_id, p_proceso_id: scope.proceso_id }, "Alcance actualizado")}>Guardar alcance</button></section>}
         {fechasOk && <section className="space-y-3"><h3 className="font-semibold text-sm">Fechas</h3>
-          <div className="grid sm:grid-cols-2 gap-3"><Campo etiqueta="Inicio" ayuda={`Antigüedad máxima: ${diasMax} días`}><input className="input" type="datetime-local" value={ini} onChange={(e) => setIni(e.target.value)} /></Campo><Campo etiqueta="Fin"><input className="input" type="datetime-local" min={ini} value={fin} onChange={(e) => setFin(e.target.value)} /></Campo></div>
+          <div className="grid sm:grid-cols-2 gap-3"><Campo etiqueta="Inicio" ayuda={`Antigüedad máxima: ${diasMax} días${limites.paso > 1 ? `. Minutos de a ${limites.paso}` : ""}`}><CampoFechaHora paso={limites.paso} value={ini} onChange={setIni} /></Campo><Campo etiqueta="Fin" ayuda={limites.horasMax ? `Máximo ${String(limites.horasMax).replace(".", ",")} horas seguidas.` : undefined}><CampoFechaHora paso={limites.paso} min={ini} value={fin} onChange={setFin} /></Campo></div>
+          {avisoLimite(ini, fin, zona, limites.horasMax) && <p role="alert" className="text-sm text-danger">{avisoLimite(ini, fin, zona, limites.horasMax)}</p>}
           <p className="text-xs text-muted">Al cambiar las fechas se recalculan horas e importes, y en aprobación se vuelven a pedir las decisiones.</p>
-          <button className="btn btn-secondary btn-sm" disabled={ocupado || !ini || !fin || fin <= ini} onClick={() => rpc("rpc_modificar_fechas", { p_solicitud_id: sol.id, p_fecha_hora_inicio: localToIso(ini, zona), p_fecha_hora_fin: localToIso(fin, zona) }, "Fechas actualizadas")}>Guardar fechas</button></section>}
+          <button className="btn btn-secondary btn-sm" disabled={ocupado || !ini || !fin || fin <= ini || !!avisoLimite(ini, fin, zona, limites.horasMax)} onClick={() => rpc("rpc_modificar_fechas", { p_solicitud_id: sol.id, p_fecha_hora_inicio: localToIso(ini, zona), p_fecha_hora_fin: localToIso(fin, zona) }, "Fechas actualizadas")}>Guardar fechas</button></section>}
         {fechasOk && <section className="space-y-3"><h3 className="font-semibold text-sm">Motivo</h3>
           <select className="input" value={mot} onChange={(e) => setMot(e.target.value)}>{cat.motivos.filter((m) => m.activo || m.id === sol.motivo_id).map((m) => <option key={m.id} value={m.id}>{m.motivo}{m.requiere_aprobacion ? "" : " (sin aprobación)"}</option>)}</select>
           <p className="text-xs text-muted">Pasar entre motivos que requieren aprobación conserva las aprobaciones; pasar a uno que no la requiere (o al revés) las recalcula.</p>

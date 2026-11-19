@@ -5,9 +5,10 @@ import { ScopeSelect, type Scope } from "@/components/ui/scope-select";
 import { Campo } from "@/components/ui/misc";
 import { useRpc } from "@/lib/use-accion";
 import { localToIso, nowLocal } from "@/lib/format";
+import { CampoFechaHora, avisoLimite, type LimitesSolicitud } from "@/components/ui/fecha-hora";
 import type { Catalogos } from "@/lib/catalogos";
 
-export function NuevaSolicitudForm({ cat, zona, diasMax }: { cat: Catalogos; zona: string; diasMax: number }) {
+export function NuevaSolicitudForm({ cat, zona, diasMax, limites }: { cat: Catalogos; zona: string; diasMax: number; limites: LimitesSolicitud }) {
   const router = useRouter();
   const { rpc, ocupado } = useRpc();
   const [scope, setScope] = useState<Scope>({ area_id: "", sector_id: "", proceso_id: "" });
@@ -16,7 +17,8 @@ export function NuevaSolicitudForm({ cat, zona, diasMax }: { cat: Catalogos; zon
   const [motivo, setMotivo] = useState("");
   const [obs, setObs] = useState("");
   const m = cat.motivos.find((x) => x.id === motivo);
-  const valido = scope.proceso_id && inicio && fin && motivo && fin > inicio;
+  const aviso = avisoLimite(inicio, fin, zona, limites.horasMax);
+  const valido = scope.proceso_id && inicio && fin && motivo && fin > inicio && !aviso;
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,9 +34,10 @@ export function NuevaSolicitudForm({ cat, zona, diasMax }: { cat: Catalogos; zon
     <form onSubmit={enviar} className="card p-5 sm:p-6 max-w-3xl space-y-5">
       <ScopeSelect value={scope} onChange={setScope} areas={cat.areas} sectores={cat.sectores} procesos={cat.procesos} />
       <div className="grid gap-3 sm:grid-cols-2">
-        <Campo etiqueta="Inicio" ayuda={`Hora de ${zona}. Antigüedad máxima: ${diasMax} días.`}><input className="input" type="datetime-local" required value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
-        <Campo etiqueta="Fin"><input className="input" type="datetime-local" required min={inicio} value={fin} onChange={(e) => setFin(e.target.value)} /></Campo>
+        <Campo etiqueta="Inicio" ayuda={`Hora de ${zona}. Antigüedad máxima: ${diasMax} días.${limites.paso > 1 ? ` Minutos de a ${limites.paso}.` : ""}`}><CampoFechaHora required paso={limites.paso} value={inicio} onChange={setInicio} /></Campo>
+        <Campo etiqueta="Fin" ayuda={limites.horasMax ? `Máximo ${String(limites.horasMax).replace(".", ",")} horas seguidas.` : undefined}><CampoFechaHora required paso={limites.paso} min={inicio} value={fin} onChange={setFin} /></Campo>
       </div>
+      {aviso && <p role="alert" className="text-sm text-danger">{aviso}</p>}
       <Campo etiqueta="Motivo" ayuda={m ? (m.requiere_aprobacion ? "Este motivo requiere aprobación." : "Este motivo no requiere aprobación: los empleados quedan aprobados al agregarlos.") : undefined}>
         <select className="input" required value={motivo} onChange={(e) => setMotivo(e.target.value)}>
           <option value="">Seleccionar…</option>{cat.motivos.filter((x) => x.activo).map((x) => <option key={x.id} value={x.id}>{x.motivo} ({x.tipo === "PRODUCTIVO" ? "productivo" : "improductivo"})</option>)}

@@ -9,6 +9,7 @@ const dec = (n: number) => n.toFixed(2).replace(".", ",");
 const hhmm = (h: number) => { const m = Math.round(h * 60); return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; };
 // Evita que Excel interprete texto cargado por usuarios como fórmula (=, +, -, @).
 const texto = (v: unknown) => { const t = String(v ?? "").replace(/\r?\n/g, " ").trim(); return /^[=+\-@]/.test(t) ? `'${t}` : t; };
+const TIPO_TXT: Record<string, string> = { JORNAL: "Jornal", MENSUAL: "Mensual" };
 const celda = (v: string) => `"${v.replace(/"/g, '""')}"`;
 
 /** Una fila por empleado de cada solicitud, con una columna de horas (y de valor/total, si corresponde) por cada banda horaria usada. */
@@ -34,9 +35,9 @@ export async function armarCsvSolicitudes(sb: SupabaseClient, filas: SolicitudRe
     .sort((a, b) => Number(a.multiplicador) - Number(b.multiplicador) || a.descripcion.localeCompare(b.descripcion, "es"));
 
   const cab = ["N°Solicitud", "FechaSolicitud", "Solicitante", "FechaInicioExtra", "HoraInicioExtra", "FechaFinExtra", "HoraFinExtra", "MotivoExtra", "TipoMotivo", "AreaExtra", "SectorExtra", "ProcesoExtra", "StatusSolicitud", "ObservacionExtra",
-    "Legajo", "Colaborador", "Categoria", "StatusColaborador", "IB", "RankingHoras", "EstadoAprobacion", "MotivoRechazo", "UsuarioAprobacion", "FechaAprobacion", "EstadoIngreso", "FechaIngreso", "ObservacionIngreso", "CantidadHoras",
+    "Legajo", "Colaborador", "Categoria", "TipoEmpleado", "StatusColaborador", "IB", "RankingHoras", "EstadoAprobacion", "MotivoRechazo", "UsuarioAprobacion", "FechaAprobacion", "EstadoIngreso", "FechaIngreso", "ObservacionIngreso", "CantidadHoras", "HorasReales", "InicioReal", "FinReal", "OrigenTiempoReal", "ObservacionTiempoReal",
     ...usadas.flatMap((b) => [`Hs ${b.descripcion}`, ...(verImportes ? [`ValorHs ${b.descripcion}`, `Total ${b.descripcion}`] : [])]),
-    ...(verImportes ? ["Moneda", "TotalImporte"] : [])];
+    ...(verImportes ? ["Moneda", "TotalImporte", "ImporteReal"] : [])];
 
   const lineas: string[] = [];
   const base = (s: SolicitudResumen) => [s.numero ?? "", fmtFecha(s.fecha_hora_solicitud, zona), s.solicitante_nombre, fmtFecha(s.fecha_hora_inicio, zona), hora(s.fecha_hora_inicio, zona), fmtFecha(s.fecha_hora_fin, zona), hora(s.fecha_hora_fin, zona),
@@ -54,10 +55,12 @@ export async function armarCsvSolicitudes(sb: SupabaseClient, filas: SolicitudRe
       });
       lineas.push([
         ...base(s).map((x) => texto(x)),
-        e.legajo, e.nombre_completo, r?.categoria_codigo ?? "", r ? (r.estado === "ACTIVO" ? "Activo" : "Inactivo") : "", e.ib_descripcion ?? "", e.ranking_horas_al_momento != null ? dec(Number(e.ranking_horas_al_momento)) : "",
+        e.legajo, e.nombre_completo, r?.categoria_codigo ?? "", TIPO_TXT[(e.tipo_pago ?? r?.tipo_pago ?? "") as string] ?? "", r ? (r.estado === "ACTIVO" ? "Activo" : "Inactivo") : "", e.ib_descripcion ?? "", e.ranking_horas_al_momento != null ? dec(Number(e.ranking_horas_al_momento)) : "",
         APROBACION_LABEL[e.estado_aprobacion], e.motivo_rechazo ?? "", e.usuario_aprobacion_id ? usuarios.get(e.usuario_aprobacion_id) ?? "" : "", e.fecha_hora_aprobacion ? fmtFecha(e.fecha_hora_aprobacion, zona) : "",
         e.estado_asistencia === "NO_APLICA" ? "" : ASISTENCIA_LABEL[e.estado_asistencia], e.fecha_hora_ingreso ? fmtFechaHora(e.fecha_hora_ingreso, zona).replace(", ", " ") : "", e.observacion_control_ingreso ?? "", hhmm(Number(e.total_horas)),
-      ].map((x, i) => (i < 14 ? x : texto(x))).concat(porBanda, verImportes ? [s.moneda ?? "", e.total_importe != null ? dec(Number(e.total_importe)) : ""] : []).map((x) => celda(String(x))).join(";"));
+        e.horas_reales != null ? hhmm(Number(e.horas_reales)) : "", e.real_inicio ? fmtFechaHora(e.real_inicio, zona).replace(", ", " ") : "", e.real_fin ? fmtFechaHora(e.real_fin, zona).replace(", ", " ") : "",
+        e.real_origen === "FICHADA" ? "Fichada" : e.real_origen === "MANUAL" ? "Manual" : "", e.observacion_real ?? "",
+      ].map((x, i) => (i < 14 ? x : texto(x))).concat(porBanda, verImportes ? [s.moneda ?? "", e.total_importe != null ? dec(Number(e.total_importe)) : "", e.importe_real != null ? dec(Number(e.importe_real)) : ""] : []).map((x) => celda(String(x))).join(";"));
     }
   }
   return "﻿" + [cab.map(celda).join(";"), ...lineas].join("\r\n");

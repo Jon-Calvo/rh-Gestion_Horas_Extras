@@ -11,22 +11,26 @@ import { bandaPara } from "@/lib/ranking";
 import type { Catalogos } from "@/lib/catalogos";
 import type { BandaRanking, CategoriaTipo, EmpleadoResumen, IbConfig } from "@/lib/types";
 
-export function EmpleadosTabla({ filas, cat, categorias, ibs, bandas, puedeEditar }: { filas: EmpleadoResumen[]; cat: Catalogos; categorias: CategoriaTipo[]; ibs: IbConfig[]; bandas: BandaRanking[]; puedeEditar: boolean }) {
+const TIPO_TXT = { JORNAL: "Jornal", MENSUAL: "Mensual" } as const;
+
+export function EmpleadosTabla({ filas, cat, categorias, ibs, bandas, puedeEditar, conTipo }: { filas: EmpleadoResumen[]; cat: Catalogos; categorias: CategoriaTipo[]; ibs: IbConfig[]; bandas: BandaRanking[]; puedeEditar: boolean; conTipo: boolean }) {
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState<"" | "ACTIVO" | "INACTIVO">("ACTIVO");
   const [edit, setEdit] = useState<EmpleadoResumen | "nuevo" | null>(null);
-  const datos = useMemo(() => filas.filter((f) => !estado || f.estado === estado), [filas, estado]);
+  const [tipo, setTipo] = useState<"" | "JORNAL" | "MENSUAL" | "SIN">("");
+  const datos = useMemo(() => filas.filter((f) => (!estado || f.estado === estado) && (!tipo || (tipo === "SIN" ? !f.tipo_pago : f.tipo_pago === tipo))), [filas, estado, tipo]);
 
   const columns = useMemo<ColumnDef<EmpleadoResumen>[]>(() => [
     { accessorKey: "legajo", header: "Legajo", cell: (c) => <span className="font-semibold">{c.getValue<string>()}</span> },
     { accessorKey: "nombre_completo", header: "Nombre" },
     { accessorKey: "categoria_codigo", header: "Categoría" },
+    ...(conTipo ? [{ accessorKey: "tipo_pago", header: "Tipo", cell: (c: any) => c.getValue() ? <Badge tono={c.getValue() === "JORNAL" ? "azul" : "gris"}>{TIPO_TXT[c.getValue() as keyof typeof TIPO_TXT]}</Badge> : <span className="text-muted" title="Sin definir">—</span> } as ColumnDef<EmpleadoResumen>] : []),
     { id: "unidad", header: "Área / sector / proceso", accessorFn: (r) => [r.area_nombre, r.sector_nombre, r.proceso_nombre].filter(Boolean).join(" "), cell: (c) => <div>{c.row.original.area_nombre ?? "—"}<div className="text-xs text-muted">{[c.row.original.sector_nombre, c.row.original.proceso_nombre].filter(Boolean).join(" · ")}</div></div> },
     { accessorKey: "ib_descripcion", header: "IB", cell: (c) => c.getValue<string>() ?? "—" },
     { accessorKey: "ranking_horas", header: "Ranking", cell: (c) => { const b = bandaPara(c.getValue<number>(), bandas, "solicitud"); return <span className="font-medium" style={{ color: b?.color }} title={b?.descripcion}>{fmtHoras(c.getValue<number>())} h</span>; } },
     { accessorKey: "estado", header: "Estado", cell: (c) => <Badge tono={c.getValue<string>() === "ACTIVO" ? "verde" : "gris"}>{c.getValue<string>() === "ACTIVO" ? "Activo" : "Inactivo"}</Badge> },
     ...(puedeEditar ? [{ id: "acc", header: "", cell: (c: any) => <button className="btn btn-ghost btn-sm" onClick={() => setEdit(c.row.original)}>Editar</button> } as ColumnDef<EmpleadoResumen>] : []),
-  ], [bandas, puedeEditar]);
+  ], [bandas, puedeEditar, conTipo]);
 
   return (
     <>
@@ -35,16 +39,19 @@ export function EmpleadosTabla({ filas, cat, categorias, ibs, bandas, puedeEdita
         <select className="input sm:max-w-40" value={estado} onChange={(e) => setEstado(e.target.value as "" | "ACTIVO" | "INACTIVO")} aria-label="Estado">
           <option value="ACTIVO">Activos</option><option value="INACTIVO">Inactivos</option><option value="">Todos</option>
         </select>
+        {conTipo && <select className="input sm:max-w-44" value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)} aria-label="Tipo de empleado">
+          <option value="">Jornal y mensual</option><option value="JORNAL">Solo jornal</option><option value="MENSUAL">Solo mensual</option><option value="SIN">Sin tipo definido</option>
+        </select>}
         <div className="flex-1" />
         {puedeEditar && <button className="btn btn-primary" onClick={() => setEdit("nuevo")}>+ Nuevo empleado</button>}
       </div>
       {filas.length === 0 ? <Vacio titulo="No hay empleados para mostrar" detalle="Importá un Excel o cargalos manualmente." /> : <DataTable data={datos} columns={columns} filtroGlobal={q} vacio="Ningún empleado coincide" />}
-      {puedeEditar && edit !== null && <FormEmpleado key={edit === "nuevo" ? "nuevo" : edit.id} abierto emp={edit === "nuevo" ? null : edit} cat={cat} categorias={categorias} ibs={ibs} onCerrar={() => setEdit(null)} />}
+      {puedeEditar && edit !== null && <FormEmpleado key={edit === "nuevo" ? "nuevo" : edit.id} abierto emp={edit === "nuevo" ? null : edit} cat={cat} categorias={categorias} ibs={ibs} conTipo={conTipo} onCerrar={() => setEdit(null)} />}
     </>
   );
 }
 
-function FormEmpleado({ abierto, emp, cat, categorias, ibs, onCerrar }: { abierto: boolean; emp: EmpleadoResumen | null; cat: Catalogos; categorias: CategoriaTipo[]; ibs: IbConfig[]; onCerrar: () => void }) {
+function FormEmpleado({ abierto, emp, cat, categorias, ibs, conTipo, onCerrar }: { abierto: boolean; emp: EmpleadoResumen | null; cat: Catalogos; categorias: CategoriaTipo[]; ibs: IbConfig[]; conTipo: boolean; onCerrar: () => void }) {
   const { rpc, ocupado, toast } = useRpc();
   const [legajo, setLegajo] = useState(emp?.legajo ?? "");
   const [nombre, setNombre] = useState(emp?.nombre_completo ?? "");
@@ -53,6 +60,7 @@ function FormEmpleado({ abierto, emp, cat, categorias, ibs, onCerrar }: { abiert
   const [estado, setEstado] = useState<"ACTIVO" | "INACTIVO">(emp?.estado ?? "ACTIVO");
   const [ib, setIb] = useState(emp?.ib_id ?? "");
   const [real, setReal] = useState(decimalATexto(emp?.ranking_horas_real));
+  const [tipoPago, setTipoPago] = useState<string>(emp?.tipo_pago ?? "");
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +71,7 @@ function FormEmpleado({ abierto, emp, cat, categorias, ibs, onCerrar }: { abiert
       p_area_id: scope.area_id || null, p_sector_id: scope.sector_id || null, p_proceso_id: scope.proceso_id || null,
       p_estado: estado, p_ib_id: ib || null, p_ranking_horas_real: realNum,
       p_borrar_ib: !!emp?.ib_id && !ib, p_borrar_ranking_real: emp?.ranking_horas_real != null && real.trim() === "",
+      ...(conTipo && tipoPago ? { p_tipo_pago: tipoPago } : {}),
     }, emp ? "Empleado actualizado" : "Empleado creado");
     if (r.ok) onCerrar();
   };
@@ -75,6 +84,7 @@ function FormEmpleado({ abierto, emp, cat, categorias, ibs, onCerrar }: { abiert
           <Campo etiqueta="Nombre completo"><input className="input" required value={nombre} onChange={(e) => setNombre(e.target.value)} /></Campo>
           <Campo etiqueta="Categoría"><select className="input" required value={categoria} onChange={(e) => setCategoria(e.target.value)}><option value="">Seleccionar…</option>{categorias.map((c) => <option key={c.id} value={c.codigo}>{c.codigo}{c.descripcion ? ` — ${c.descripcion}` : ""}</option>)}</select></Campo>
           <Campo etiqueta="Estado"><select className="input" value={estado} onChange={(e) => setEstado(e.target.value as "ACTIVO" | "INACTIVO")}><option value="ACTIVO">Activo</option><option value="INACTIVO">Inactivo</option></select></Campo>
+          {conTipo && <Campo etiqueta="Tipo de empleado"><select className="input" required value={tipoPago} onChange={(e) => setTipoPago(e.target.value)}><option value="">Seleccionar…</option><option value="JORNAL">Jornal</option><option value="MENSUAL">Mensual</option></select></Campo>}
         </div>
         <ScopeSelect value={scope} onChange={setScope} areas={cat.areas} sectores={cat.sectores} procesos={cat.procesos} />
         <div className="grid sm:grid-cols-2 gap-3">

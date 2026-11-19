@@ -21,6 +21,15 @@ Ingreso · Panel · Solicitudes (lista, nueva, detalle con aprobación por emple
 - **Segundo logo y segundo nombre** (Configuración → Apariencia): el encabezado del menú conserva logo 1, nombre 1 y el texto gris; el logo 2 y el nombre 2 van al pie del menú y en la pantalla de ingreso. El **texto gris** (antes fijo «Horas extras») es editable. Requieren las migraciones `0003` (logo 2 y nombre 2) y `0004` (texto gris); sin ellas la pantalla funciona igual y avisa que falta.
 - **Contadores en el menú**: «Aprobaciones» (solicitudes en aprobación dentro de tu alcance) y «Control de ingreso» (aprobadas pendientes de control) muestran un número rojo. Se actualizan al navegar, al volver a la pestaña y cada 60 s (`/api/pendientes`).
 
+## Novedades (quinta tanda)
+
+Requiere la migración `0005_limites_tipo_empleado_y_fichadas.sql` (aplicarla **antes** de publicar esta versión).
+
+- **Límite de horas por solicitud** y **intervalo de minutos** (Administración → Configuración). El límite se valida también en la base.
+- **Tipo de empleado Jornal / Mensual**: alta/edición, importación Excel (columna opcional `tipo`) y exportación CSV de solicitudes (`TipoEmpleado`).
+- **Conciliación de fichadas** (menú Operación → Conciliación): importa el Excel del reloj (.xls/.xlsx, librería `@e965/xlsx`), propone el tiempo real por superposición con el horario solicitado y una persona lo confirma o indica otro horario (con observación). No modifica el horario de la solicitud; el ranking se corrige por la diferencia. La CSV suma HorasReales, InicioReal, FinReal, OrigenTiempoReal, ObservacionTiempoReal e ImporteReal (este último solo con permiso de importes).
+- Pruebas del lector de fichadas: `npx tsx --tsconfig tsconfig.json tests/fichadas.test.ts`.
+
 ## Decimales
 En los campos decimales podés escribir **coma o punto** (`1,5` o `1.5`); se guardan igual. No uses separador de miles. En el CSV los números salen con coma decimal.
 

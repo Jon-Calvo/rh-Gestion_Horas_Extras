@@ -24,6 +24,8 @@ export interface ConfigGeneral {
   id: number; dias_maximos_antiguedad: number; emails_activos: boolean; ranking_periodo: "MENSUAL" | "TRIMESTRAL" | "ANUAL";
   control_ingreso_permite_eliminar: boolean; nivel_auditoria_negocio: "DESACTIVADA" | "BASICA" | "COMPLETA";
   retencion_auditoria_meses: number | null; zona_horaria: string; ultimo_reseteo_ranking: string | null;
+  // Migración 0005 (opcionales: no vienen si todavía no se aplicó).
+  horas_maximas_solicitud?: number | null; minutos_intervalo?: number; fichadas_redondeo_minutos?: number; fichadas_tolerancia_minutos?: number;
 }
 export interface ConfigApariencia {
   id: number; nombre_empresa: string | null; logo_url: string | null; logo_url_secundario?: string | null; subtitulo_app?: string | null; nombre_empresa_secundario?: string | null; color_primario: string; color_primario_hover: string;
@@ -39,6 +41,7 @@ export interface SolicitudResumen {
   // Desglose (migración 0002). Opcionales: si la migración todavía no se aplicó, no vienen.
   empleados_aprobados?: number; empleados_rechazados?: number; empleados_pendientes?: number;
   horas_aprobadas?: number; horas_rechazadas?: number; horas_pendientes?: number;
+  empleados_conciliados?: number;
 }
 export interface EmpleadoDetalle {
   solicitud_empleado_id: string; solicitud_id: string; empleado_id: string; legajo: string; nombre_completo: string;
@@ -47,12 +50,15 @@ export interface EmpleadoDetalle {
   total_importe: number | null; fecha_hora_aprobacion: string | null; usuario_aprobacion_id: string | null;
   fecha_hora_ingreso: string | null; usuario_control_ingreso_id: string | null; reemplaza_a: string | null;
   reemplaza_a_legajo: string | null; reemplaza_a_nombre: string | null; observacion_control_ingreso?: string | null;
+  // Migración 0005.
+  tipo_pago?: "JORNAL" | "MENSUAL" | null; real_inicio?: string | null; real_fin?: string | null; horas_reales?: number | null;
+  importe_real?: number | null; real_origen?: "FICHADA" | "MANUAL" | null; observacion_real?: string | null; fecha_hora_real?: string | null;
 }
 export interface EmpleadoResumen {
   id: string; legajo: string; nombre_completo: string; categoria_codigo: string; area_id: string | null; area_nombre: string | null;
   sector_id: string | null; sector_nombre: string | null; proceso_id: string | null; proceso_nombre: string | null;
   estado: "ACTIVO" | "INACTIVO"; ranking_horas: number; ranking_horas_real: number | null; ib_id: string | null; ib_descripcion: string | null;
-  fecha_alta: string; fecha_baja: string | null;
+  fecha_alta: string; fecha_baja: string | null; tipo_pago?: "JORNAL" | "MENSUAL" | null;
 }
 export interface DetalleCalculo {
   id: string; solicitud_empleado_id: string; fecha: string; banda_horaria_id: string; horas: number; valor_hora: number;

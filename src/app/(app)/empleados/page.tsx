@@ -21,7 +21,7 @@ export default async function Empleados() {
   return (
     <>
       <PageHeader titulo="Empleados" subtitulo="Personal dentro de tu alcance de visibilidad." acciones={s.flags.puedeImportar ? <Link href="/empleados/importar" className="btn btn-secondary">Importar desde Excel</Link> : undefined} />
-      <EmpleadosTabla filas={(emp.data ?? []) as EmpleadoResumen[]} cat={cat} categorias={(tipos.data ?? []) as CategoriaTipo[]} ibs={(ibs.data ?? []) as IbConfig[]} bandas={(bandas.data ?? []) as BandaRanking[]} puedeEditar={s.flags.puedeImportar} />
+      <EmpleadosTabla filas={(emp.data ?? []) as EmpleadoResumen[]} cat={cat} categorias={(tipos.data ?? []) as CategoriaTipo[]} ibs={(ibs.data ?? []) as IbConfig[]} bandas={(bandas.data ?? []) as BandaRanking[]} puedeEditar={s.flags.puedeImportar} conTipo={(emp.data?.length ?? 0) === 0 || "tipo_pago" in (emp.data![0] as object)} />
     </>
   );
 }

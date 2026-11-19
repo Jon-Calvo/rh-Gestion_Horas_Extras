@@ -20,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...(puedeCrear ? [{ href: "/solicitudes/nueva", label: "Nueva solicitud", icon: "plus", grupo: "Operación" }] : []),
     ...(puedeAprobar ? [{ href: "/aprobaciones", label: "Aprobaciones", icon: "check", grupo: "Operación", badge: "aprobaciones" as const }] : []),
     ...(f.puedeControlIngreso ? [{ href: "/control-ingreso", label: "Control de ingreso", icon: "door", grupo: "Operación", badge: "control" as const }] : []),
+    ...(f.puedeControlIngreso ? [{ href: "/conciliacion", label: "Conciliación", icon: "shield", grupo: "Operación" }] : []),
     { href: "/estadisticas", label: "Estadísticas", icon: "chart", grupo: "Operación" },
     { href: "/empleados", label: "Empleados", icon: "users", grupo: "Personal" },
     { href: "/ranking", label: "Ranking", icon: "trophy", grupo: "Personal" },
