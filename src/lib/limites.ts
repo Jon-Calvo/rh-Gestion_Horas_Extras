@@ -17,3 +17,8 @@ export function avisoLimite(ini: string, fin: string, zona: string, horasMax: nu
   if (h > horasMax + 1e-9) return `La solicitud dura ${String(Math.round(h * 100) / 100).replace(".", ",")} h y el máximo permitido es ${String(horasMax).replace(".", ",")} h seguidas.`;
   return null;
 }
+
+/** true si los minutos del valor "YYYY-MM-DDTHH:mm" no son múltiplo del paso configurado. */
+export function minutosFueraDePaso(valor: string, paso: number): boolean {
+  return paso > 1 && valor !== "" && Number(valor.slice(14, 16)) % paso !== 0;
+}

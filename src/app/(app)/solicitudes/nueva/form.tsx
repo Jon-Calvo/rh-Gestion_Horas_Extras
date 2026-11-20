@@ -5,7 +5,7 @@ import { ScopeSelect, type Scope } from "@/components/ui/scope-select";
 import { Campo } from "@/components/ui/misc";
 import { useRpc } from "@/lib/use-accion";
 import { localToIso, nowLocal } from "@/lib/format";
-import { CampoFechaHora, avisoLimite, type LimitesSolicitud } from "@/components/ui/fecha-hora";
+import { CampoFechaHora, avisoLimite, minutosFueraDePaso, type LimitesSolicitud } from "@/components/ui/fecha-hora";
 import type { Catalogos } from "@/lib/catalogos";
 
 export function NuevaSolicitudForm({ cat, zona, diasMax, limites }: { cat: Catalogos; zona: string; diasMax: number; limites: LimitesSolicitud }) {
@@ -18,7 +18,7 @@ export function NuevaSolicitudForm({ cat, zona, diasMax, limites }: { cat: Catal
   const [obs, setObs] = useState("");
   const m = cat.motivos.find((x) => x.id === motivo);
   const aviso = avisoLimite(inicio, fin, zona, limites.horasMax);
-  const valido = scope.proceso_id && inicio && fin && motivo && fin > inicio && !aviso;
+  const valido = scope.proceso_id && inicio && fin && motivo && fin > inicio && !aviso && !minutosFueraDePaso(inicio, limites.paso) && !minutosFueraDePaso(fin, limites.paso);
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();

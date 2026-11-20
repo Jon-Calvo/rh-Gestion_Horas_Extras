@@ -11,7 +11,7 @@ import { IngresoModal, type RegistroIngreso } from "@/components/solicitudes/ing
 import { IbRanking } from "@/components/solicitudes/ranking-chip";
 import { useRpc } from "@/lib/use-accion";
 import { fmtFechaHora, fmtHoras, fmtImporte, isoToLocal, localToIso } from "@/lib/format";
-import { CampoFechaHora, avisoLimite, type LimitesSolicitud } from "@/components/ui/fecha-hora";
+import { CampoFechaHora, avisoLimite, minutosFueraDePaso, type LimitesSolicitud } from "@/components/ui/fecha-hora";
 import type { Catalogos } from "@/lib/catalogos";
 import type { AuditoriaNegocio, BandaRanking, DetalleCalculo, EmpleadoDetalle, EstadoAsistencia, PermisosScope, SolicitudResumen } from "@/lib/types";
 
@@ -222,7 +222,7 @@ function Editar({ abierto, onCerrar, sol, cat, zona, diasMax, limites, rpc, ocup
           <div className="grid sm:grid-cols-2 gap-3"><Campo etiqueta="Inicio" ayuda={`Antigüedad máxima: ${diasMax} días${limites.paso > 1 ? `. Minutos de a ${limites.paso}` : ""}`}><CampoFechaHora paso={limites.paso} value={ini} onChange={setIni} /></Campo><Campo etiqueta="Fin" ayuda={limites.horasMax ? `Máximo ${String(limites.horasMax).replace(".", ",")} horas seguidas.` : undefined}><CampoFechaHora paso={limites.paso} min={ini} value={fin} onChange={setFin} /></Campo></div>
           {avisoLimite(ini, fin, zona, limites.horasMax) && <p role="alert" className="text-sm text-danger">{avisoLimite(ini, fin, zona, limites.horasMax)}</p>}
           <p className="text-xs text-muted">Al cambiar las fechas se recalculan horas e importes, y en aprobación se vuelven a pedir las decisiones.</p>
-          <button className="btn btn-secondary btn-sm" disabled={ocupado || !ini || !fin || fin <= ini || !!avisoLimite(ini, fin, zona, limites.horasMax)} onClick={() => rpc("rpc_modificar_fechas", { p_solicitud_id: sol.id, p_fecha_hora_inicio: localToIso(ini, zona), p_fecha_hora_fin: localToIso(fin, zona) }, "Fechas actualizadas")}>Guardar fechas</button></section>}
+          <button className="btn btn-secondary btn-sm" disabled={ocupado || !ini || !fin || fin <= ini || !!avisoLimite(ini, fin, zona, limites.horasMax) || minutosFueraDePaso(ini, limites.paso) || minutosFueraDePaso(fin, limites.paso)} onClick={() => rpc("rpc_modificar_fechas", { p_solicitud_id: sol.id, p_fecha_hora_inicio: localToIso(ini, zona), p_fecha_hora_fin: localToIso(fin, zona) }, "Fechas actualizadas")}>Guardar fechas</button></section>}
         {fechasOk && <section className="space-y-3"><h3 className="font-semibold text-sm">Motivo</h3>
           <select className="input" value={mot} onChange={(e) => setMot(e.target.value)}>{cat.motivos.filter((m) => m.activo || m.id === sol.motivo_id).map((m) => <option key={m.id} value={m.id}>{m.motivo}{m.requiere_aprobacion ? "" : " (sin aprobación)"}</option>)}</select>
           <p className="text-xs text-muted">Pasar entre motivos que requieren aprobación conserva las aprobaciones; pasar a uno que no la requiere (o al revés) las recalcula.</p>
