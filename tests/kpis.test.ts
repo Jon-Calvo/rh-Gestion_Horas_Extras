@@ -1,4 +1,4 @@
-import { calcularKpis, mesDe, sumarMeses, pct, topEmpleados } from "../src/lib/kpis";
+import { calcularKpis, mesDe, sumarMeses, pct, topEmpleados, filtrarSolicitudesPorTipo, comparativoTipos } from "../src/lib/kpis";
 let fallos = 0; const t = (n: string, ok: boolean, d?: unknown) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ? "" : " -> " + JSON.stringify(d))); if (!ok) fallos++; };
 const Z = "America/Argentina/Buenos_Aires";
 const f = (o: Partial<any>): any => ({ situacion: "APROBADA", fecha_hora_inicio: "2026-11-10T12:00:00Z", area_nombre: "A", sector_nombre: "S1", proceso_nombre: "P1", motivo_nombre: "M1", motivo_tipo: "PRODUCTIVO", moneda: "ARS", horas_aprobadas: 10, horas_rechazadas: 0, horas_pendientes: 0, importe_aprobado: 1000, ...o });
@@ -39,4 +39,27 @@ const emps: any[] = [
 const te = topEmpleados(emps, true, "ARS", new Map([["s1", "ARS"], ["s2", "ARS"], ["s3", "USD"]]));
 t("top empleados: solo aprobados, suma por empleado, ordenado", te.distintos === 2 && te.top[0].nombre === "Ana" && te.top[0].horas === 12 && te.top[0].importe === 1200 && te.top[0].solicitudes === 2, te);
 t("top empleados: importe de otra moneda no se suma", te.top[1].nombre === "Cora" && te.top[1].importe === 0);
+
+// --- Tipo de empleado
+const sT = [f({ id: "a", horas_aprobadas: 99, importe_aprobado: 9999 }), f({ id: "b", horas_aprobadas: 99 }), f({ id: "c", fecha_hora_inicio: "2026-10-15T12:00:00Z" })];
+const eT: any[] = [
+  { solicitud_id: "a", empleado_id: "j1", legajo: "1", nombre_completo: "J1", estado_aprobacion: "APROBADO", estado_registro: "ACTIVO", total_horas: 4, total_importe: 400, tipo_pago: "JORNAL" },
+  { solicitud_id: "a", empleado_id: "j2", legajo: "2", nombre_completo: "J2", estado_aprobacion: "RECHAZADO", estado_registro: "ACTIVO", total_horas: 2, total_importe: 200, tipo_pago: "JORNAL" },
+  { solicitud_id: "a", empleado_id: "m1", legajo: "3", nombre_completo: "M1", estado_aprobacion: "APROBADO", estado_registro: "ACTIVO", total_horas: 6, total_importe: 900, tipo_pago: "MENSUAL" },
+  { solicitud_id: "b", empleado_id: "m1", legajo: "3", nombre_completo: "M1", estado_aprobacion: "APROBADO", estado_registro: "ACTIVO", total_horas: 3, total_importe: 450, tipo_pago: "MENSUAL" },
+  { solicitud_id: "b", empleado_id: "x1", legajo: "9", nombre_completo: "X", estado_aprobacion: "APROBADO", estado_registro: "ACTIVO", total_horas: 1, total_importe: 10, tipo_pago: null },
+  { solicitud_id: "c", empleado_id: "j1", legajo: "1", nombre_completo: "J1", estado_aprobacion: "APROBADO", estado_registro: "ACTIVO", total_horas: 5, total_importe: 500, tipo_pago: "JORNAL" },
+  { solicitud_id: "a", empleado_id: "j3", legajo: "4", nombre_completo: "J3", estado_aprobacion: "APROBADO", estado_registro: "REEMPLAZADO", total_horas: 50, total_importe: 5000, tipo_pago: "JORNAL" },
+];
+const fj = filtrarSolicitudesPorTipo(sT as any, eT, "JORNAL", true);
+t("filtro Jornal: descarta solicitudes sin jornal y recalcula horas", fj.length === 2 && fj[0].horas_aprobadas === 4 && fj[0].horas_rechazadas === 2 && fj[0].importe_aprobado === 400, fj.map((x) => [x.id, x.horas_aprobadas]));
+t("filtro: sin permiso de importes el importe queda nulo", filtrarSolicitudesPorTipo(sT as any, eT, "JORNAL", false)[0].importe_aprobado === null);
+const fm = filtrarSolicitudesPorTipo(sT as any, eT, "MENSUAL", true);
+t("filtro Mensual: suma las dos solicitudes", fm.length === 2 && fm.reduce((x, y) => x + (y.horas_aprobadas as number), 0) === 9);
+const ct = comparativoTipos(eT, sT as any, "2026-11", Z, true, "ARS");
+const g = (x: string) => ct.filas.find((y) => y.tipo === x)!;
+t("comparativo: jornal 4 h / 1 empleado / octubre 5 h", g("JORNAL").horas === 4 && g("JORNAL").empleados === 1 && g("JORNAL").horasPrevio === 5 && g("JORNAL").importe === 400, g("JORNAL"));
+t("comparativo: mensual cuenta empleados distintos en 2 solicitudes", g("MENSUAL").horas === 9 && g("MENSUAL").empleados === 1 && g("MENSUAL").solicitudes === 2 && g("MENSUAL").importe === 1350, g("MENSUAL"));
+t("comparativo: 'sin tipo' aparece solo si tiene horas y reemplazados no cuentan", g("SIN").horas === 1 && ct.filas.length === 3 && ct.hayTipos);
+t("comparativo sin importes", comparativoTipos(eT, sT as any, "2026-11", Z, false, null).filas.every((x) => x.importe === 0));
 console.log(fallos === 0 ? "TODOS OK" : `${fallos} FALLOS`); process.exit(fallos ? 1 : 0);

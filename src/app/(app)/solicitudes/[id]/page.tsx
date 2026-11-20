@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSesion } from "@/lib/session";
 import { getCatalogos } from "@/lib/catalogos";
-import { limitesDe } from "@/components/ui/fecha-hora";
+import { limitesDe } from "@/lib/limites";
 import { Detalle } from "./detalle";
 import type { AuditoriaNegocio, BandaRanking, DetalleCalculo, EmpleadoDetalle, PermisosScope, SolicitudResumen } from "@/lib/types";
 

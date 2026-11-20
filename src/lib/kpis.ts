@@ -97,3 +97,53 @@ export function topEmpleados(emps: EmpleadoDetalle[], verImportes: boolean, mone
   const todos = [...m.values()].filter((x) => x.horas > 0);
   return { distintos: todos.length, top: todos.sort((a, b) => b.horas - a.horas || a.nombre.localeCompare(b.nombre, "es")).slice(0, 5).map((x) => ({ ...x, solicitudes: x.solicitudes.size })) };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Tipo de empleado (Jornal / Mensual)
+// ---------------------------------------------------------------------------------------------
+export type TipoPago = "JORNAL" | "MENSUAL";
+export const TIPOS_PAGO: readonly TipoPago[] = ["JORNAL", "MENSUAL"];
+export const TIPO_LABEL: Record<TipoPago | "SIN", string> = { JORNAL: "Jornal", MENSUAL: "Mensual", SIN: "Sin tipo definido" };
+
+/** Fila mínima por empleado de una solicitud (vista_solicitud_empleados_detalle). */
+export type EmpKpi = Pick<EmpleadoDetalle, "solicitud_id" | "empleado_id" | "legajo" | "nombre_completo" | "estado_aprobacion" | "estado_registro" | "total_horas" | "total_importe" | "tipo_pago">;
+
+/** Recalcula las solicitudes contando solo a los empleados del tipo elegido; descarta las que no tienen ninguno. */
+export function filtrarSolicitudesPorTipo(filas: SolicitudResumen[], emps: EmpKpi[], tipo: TipoPago, verImportes: boolean): SolicitudResumen[] {
+  const por = new Map<string, EmpKpi[]>();
+  for (const e of emps) { if (e.estado_registro !== "ACTIVO" || e.tipo_pago !== tipo) continue; const l = por.get(e.solicitud_id); if (l) l.push(e); else por.set(e.solicitud_id, [e]); }
+  const salida: SolicitudResumen[] = [];
+  for (const f of filas) {
+    const es = por.get(f.id); if (!es?.length) continue;
+    const suma = (est: string, campo: "total_horas" | "total_importe") => es.filter((e) => e.estado_aprobacion === est).reduce((a, e) => a + num(e[campo]), 0);
+    salida.push({
+      ...f, cantidad_empleados: es.length,
+      horas_aprobadas: suma("APROBADO", "total_horas"), horas_rechazadas: suma("RECHAZADO", "total_horas"), horas_pendientes: suma("PENDIENTE_APROBACION", "total_horas"),
+      importe_aprobado: verImportes ? suma("APROBADO", "total_importe") : null,
+    });
+  }
+  return salida;
+}
+
+export interface FilaTipo { tipo: TipoPago | "SIN"; empleados: number; solicitudes: number; horas: number; horasPrevio: number; importe: number; importePrevio: number }
+export interface ComparativoTipos { filas: FilaTipo[]; moneda: string | null; hayTipos: boolean }
+
+/** Jornal vs Mensual del mes elegido (y del anterior): solo empleados aprobados. Importe solo de la moneda principal. */
+export function comparativoTipos(emps: EmpKpi[], solicitudes: SolicitudResumen[], mes: string, zona: string, verImportes: boolean, moneda: string | null): ComparativoTipos {
+  const sol = new Map(solicitudes.map((s) => [s.id, s]));
+  const ant = sumarMeses(mes, -1);
+  const acc = new Map<string, FilaTipo & { _e: Set<string>; _s: Set<string> }>();
+  const get = (t: TipoPago | "SIN") => { let x = acc.get(t); if (!x) { x = { tipo: t, empleados: 0, solicitudes: 0, horas: 0, horasPrevio: 0, importe: 0, importePrevio: 0, _e: new Set(), _s: new Set() }; acc.set(t, x); } return x; };
+  for (const t of [...TIPOS_PAGO, "SIN" as const]) get(t);
+  for (const e of emps) {
+    if (e.estado_registro !== "ACTIVO" || e.estado_aprobacion !== "APROBADO") continue;
+    const s = sol.get(e.solicitud_id); if (!s) continue;
+    const m = mesDe(s.fecha_hora_inicio, zona); if (m !== mes && m !== ant) continue;
+    const x = get(e.tipo_pago ?? "SIN");
+    const imp = verImportes && s.moneda === moneda ? num(e.total_importe) : 0;
+    if (m === mes) { x.horas += num(e.total_horas); x.importe += imp; x._e.add(e.empleado_id); x._s.add(e.solicitud_id); }
+    else { x.horasPrevio += num(e.total_horas); x.importePrevio += imp; }
+  }
+  const filas = [...acc.values()].map(({ _e, _s, ...r }) => ({ ...r, empleados: _e.size, solicitudes: _s.size }));
+  return { filas: filas.filter((f) => f.tipo !== "SIN" || f.horas > 0 || f.horasPrevio > 0), moneda, hayTipos: emps.some((e) => !!e.tipo_pago) };
+}

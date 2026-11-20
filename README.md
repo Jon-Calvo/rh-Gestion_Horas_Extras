@@ -28,6 +28,7 @@ Requiere la migración `0005_limites_tipo_empleado_y_fichadas.sql` (aplicarla **
 - **Límite de horas por solicitud** y **intervalo de minutos** (Administración → Configuración). El límite se valida también en la base.
 - **Tipo de empleado Jornal / Mensual**: alta/edición, importación Excel (columna opcional `tipo`) y exportación CSV de solicitudes (`TipoEmpleado`).
 - **Conciliación de fichadas** (menú Operación → Conciliación): importa el Excel del reloj (.xls/.xlsx, librería `@e965/xlsx`), propone el tiempo real por superposición con el horario solicitado y una persona lo confirma o indica otro horario (con observación). No modifica el horario de la solicitud; el ranking se corrige por la diferencia. La CSV suma HorasReales, InicioReal, FinReal, OrigenTiempoReal, ObservacionTiempoReal e ImporteReal (este último solo con permiso de importes).
+- **Estadísticas**: filtro por tipo de empleado (Jornal / Mensual) y tabla comparativa Jornal vs Mensual (empleados, horas, % de horas, horas por empleado, importe y costo por hora si tenés permiso).
 - Pruebas del lector de fichadas: `npx tsx --tsconfig tsconfig.json tests/fichadas.test.ts`.
 
 ## Decimales

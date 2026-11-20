@@ -1,14 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSesion } from "@/lib/session";
 import { fetchAll } from "@/lib/supabase/fetch-all";
-import { empleadosDeSolicitudes } from "@/lib/empleados-solicitud";
-import { calcularKpis, inicioMes, mesDe, SITUACIONES_KPI, sumarMeses, topEmpleados } from "@/lib/kpis";
+import { empleadosParaKpi } from "@/lib/empleados-solicitud";
+import { calcularKpis, comparativoTipos, filtrarSolicitudesPorTipo, inicioMes, mesDe, SITUACIONES_KPI, sumarMeses, topEmpleados, type EmpKpi, type TipoPago } from "@/lib/kpis";
 import type { SolicitudResumen } from "@/lib/types";
 import { VistaEstadisticas } from "./vista";
 
 export const metadata = { title: "Estadísticas" };
 
-export default async function Estadisticas({ searchParams }: { searchParams: Promise<{ mes?: string }> }) {
+export default async function Estadisticas({ searchParams }: { searchParams: Promise<{ mes?: string; tipo?: string }> }) {
   const s = (await getSesion())!;
   const hoy = mesDe(new Date().toISOString(), s.zona);
   const pedido = (await searchParams).mes;
@@ -18,12 +18,21 @@ export default async function Estadisticas({ searchParams }: { searchParams: Pro
   const sb = await createClient();
   const desde = inicioMes(sumarMeses(mes, -5), s.zona), hasta = inicioMes(sumarMeses(mes, 1), s.zona);
   const filas = await fetchAll<SolicitudResumen>((d, h) => sb.from("vista_solicitudes_resumen").select("*").gte("fecha_hora_inicio", desde).lt("fecha_hora_inicio", hasta).in("situacion", [...SITUACIONES_KPI]).order("id").range(d, h), 20000);
-  const k = calcularKpis(filas, mes, s.zona, verImp);
+  const tipoPedido = (await searchParams).tipo;
+  const tipo: TipoPago | null = tipoPedido === "JORNAL" || tipoPedido === "MENSUAL" ? tipoPedido : null;
 
-  // Detalle por empleado, solo de las solicitudes del mes elegido con horas aprobadas.
-  const delMes = filas.filter((f) => mesDe(f.fecha_hora_inicio, s.zona) === mes && Number(f.horas_aprobadas ?? 0) > 0);
-  const emps = await empleadosDeSolicitudes(sb, delMes.map((f) => f.id), true);
-  const te = topEmpleados(emps, verImp, k.monedaPrincipal, new Map(delMes.map((f) => [f.id, f.moneda])));
+  // Detalle por empleado. Con filtro por tipo hace falta toda la ventana (la tendencia también se filtra); sin filtro, solo este mes y el anterior.
+  const ventana = tipo ? filas : filas.filter((f) => { const m = mesDe(f.fecha_hora_inicio, s.zona); return m === mes || m === sumarMeses(mes, -1); });
+  let emps: EmpKpi[] = []; let tipoDisponible = true;
+  try { emps = await empleadosParaKpi(sb, ventana.map((f) => f.id)); } catch { tipoDisponible = false; }
 
-  return <VistaEstadisticas k={k} te={te} mes={mes} hoy={hoy} verImp={verImp} hayDatos={filas.length > 0} />;
+  const base = tipo && tipoDisponible ? filtrarSolicitudesPorTipo(filas, emps, tipo, verImp) : filas;
+  const k = calcularKpis(base, mes, s.zona, verImp);
+  const delMes = base.filter((f) => mesDe(f.fecha_hora_inicio, s.zona) === mes && Number(f.horas_aprobadas ?? 0) > 0);
+  const delMesIds = new Set(delMes.map((f) => f.id));
+  const empsMes = emps.filter((e) => delMesIds.has(e.solicitud_id) && (!tipo || e.tipo_pago === tipo));
+  const te = topEmpleados(empsMes as never, verImp, k.monedaPrincipal, new Map(delMes.map((f) => [f.id, f.moneda])));
+  const comp = tipoDisponible ? comparativoTipos(emps, filas, mes, s.zona, verImp, k.monedaPrincipal) : null;
+
+  return <VistaEstadisticas k={k} te={te} mes={mes} hoy={hoy} verImp={verImp} hayDatos={filas.length > 0} tipo={tipo} comp={comp} />;
 }

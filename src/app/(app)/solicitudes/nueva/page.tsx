@@ -1,7 +1,7 @@
 import { getCatalogos } from "@/lib/catalogos";
 import { getSesion } from "@/lib/session";
 import { PageHeader } from "@/components/ui/misc";
-import { limitesDe } from "@/components/ui/fecha-hora";
+import { limitesDe } from "@/lib/limites";
 import { NuevaSolicitudForm } from "./form";
 
 export const metadata = { title: "Nueva solicitud" };
