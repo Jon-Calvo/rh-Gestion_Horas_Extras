@@ -9,6 +9,7 @@ import { mensajeError } from "@/lib/errors";
 import { decimalATexto, parseDecimal } from "@/lib/format";
 import { DIAS_CORTO, DIAS_SEMANA } from "@/lib/types";
 import { ImportarFeriados } from "./importar-feriados";
+import { ThOrden, useOrden } from "@/components/ui/orden";
 
 type Fila = Record<string, unknown>;
 type Tipo = "text" | "number" | "date" | "time" | "bool" | "color" | "select" | "ref" | "dia";
@@ -56,11 +57,39 @@ function Tabla({ def, filas, datos }: { def: Def; filas: Fila[]; datos: Record<s
     if (c.tipo === "color") return <span className="inline-flex items-center gap-2"><span style={{ width: 14, height: 14, borderRadius: 4, background: String(v), border: "1px solid var(--border)" }} />{String(v)}</span>;
     return v === null || v === undefined || v === "" ? "—" : String(v);
   };
+  // Texto visible de cada celda: es lo que se busca y, salvo números/fechas, lo que se ordena.
+  const texto = (c: Col, f: Fila): string => {
+    const v = f[c.k];
+    if (c.tipo === "bool") return v ? "Sí" : "No";
+    if (c.tipo === "ref") return refTxt(c, v);
+    if (c.tipo === "date") return v ? String(v).split("-").reverse().join("/") : "";
+    if (c.tipo === "time") return v ? String(v).slice(0, 5) : "";
+    if (c.tipo === "dia") return v === undefined || v === null ? "" : `${v} ${DIAS_CORTO[Number(v) - 1]}`;
+    if (c.tipo === "number") return v === null || v === undefined || v === "" ? "" : decimalATexto(v as number);
+    return v === null || v === undefined ? "" : String(v);
+  };
+  const [q, setQ] = useState("");
+  const visibles = useMemo(() => {
+    const n = q.trim().toLowerCase();
+    return n ? ord.filter((f) => def.cols.filter((c) => c.lista).some((c) => texto(c, f).toLowerCase().includes(n))) : ord;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ord, q, def, datos]);
+  const { ordenadas, orden, alternar } = useOrden<Fila>(visibles, (f, k) => {
+    const c = def.cols.find((x) => x.k === k)!;
+    if (c.tipo === "number") { const v = f[k]; return v === null || v === undefined || v === "" ? null : Number(v); }
+    if (c.tipo === "date" || c.tipo === "time") return f[k] === null || f[k] === undefined ? null : String(f[k]); // ISO: ordena bien como texto
+    if (c.tipo === "dia") return f[k] === null || f[k] === undefined ? null : Number(f[k]);
+    return texto(c, f);
+  });
   return (
     <>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <input className="input sm:max-w-xs" type="search" placeholder={`Buscar en ${def.titulo.toLowerCase()}…`} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar" />
+        <span className="text-xs text-muted">{ordenadas.length === filas.length ? `${filas.length} registro(s)` : `${ordenadas.length} de ${filas.length}`}</span>
+      </div>
       <div className="flex justify-end gap-2 mb-3">{def.id === "feriados" && <button className="btn btn-secondary" onClick={() => setImportando(true)}>Importar Excel / CSV</button>}<button className="btn btn-primary" onClick={() => setEdit("nuevo")}>+ Agregar</button></div>
-      <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="tbl"><thead><tr>{def.cols.filter((c) => c.lista).map((c) => <th key={c.k}>{c.t}</th>)}<th /></tr></thead>
-        <tbody>{ord.length === 0 ? <tr><td colSpan={def.cols.length + 1} className="text-center text-muted py-8">Sin registros</td></tr> : ord.map((f) => (
+      <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="tbl"><thead><tr>{def.cols.filter((c) => c.lista).map((c) => <ThOrden key={c.k} clave={c.k} orden={orden} alternar={alternar}>{c.t}</ThOrden>)}<th /></tr></thead>
+        <tbody>{ordenadas.length === 0 ? <tr><td colSpan={def.cols.length + 1} className="text-center text-muted py-8">{q ? "Ningún registro coincide con la búsqueda" : "Sin registros"}</td></tr> : ordenadas.map((f) => (
           <tr key={String(f.id)}>{def.cols.filter((c) => c.lista).map((c) => <td key={c.k}>{mostrar(c, f)}</td>)}<td className="text-right"><button className="btn btn-secondary btn-sm" onClick={() => setEdit(f)}>Editar</button></td></tr>))}</tbody></table></div></div>
       {importando && <ImportarFeriados existentes={filas} onCerrar={() => setImportando(false)} />}
       {edit && <Form def={def} fila={edit === "nuevo" ? null : edit} datos={datos} onCerrar={() => setEdit(null)} />}

@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Badge, Campo } from "@/components/ui/misc";
+import { SelectorMultiple } from "@/components/ui/selector-multiple";
+import { ThOrden, useOrden } from "@/components/ui/orden";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
@@ -34,11 +36,13 @@ export function UsuariosAdmin({ usuarios, usuarioRoles, roles, permisos, scopes,
   const [nuevo, setNuevo] = useState(false);
   const [q, setQ] = useState("");
   const rolNombre = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, r.nombre])), [roles]);
-  const filas = usuarios.filter((u) => !q || u.nombre_completo.toLowerCase().includes(q.toLowerCase()));
+  const buscados = useMemo(() => usuarios.filter((u) => !q || u.nombre_completo.toLowerCase().includes(q.toLowerCase())), [usuarios, q]);
+  const rolesTxt = (id: string) => usuarioRoles.filter((x) => x.usuario_id === id).map((x) => ROL_LABEL[rolNombre[x.rol_id]] ?? rolNombre[x.rol_id]).sort().join(", ");
+  const { ordenadas: filas, orden, alternar } = useOrden<UsuarioFila>(buscados, (u, k) => k === "nombre" ? u.nombre_completo : k === "roles" ? rolesTxt(u.id) : u.activo ? "Activo" : "Inactivo");
   return (
     <>
       <div className="flex gap-3 mb-4"><input className="input sm:max-w-xs" type="search" placeholder="Buscar usuario…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar" /><div className="flex-1" /><button className="btn btn-primary" onClick={() => setNuevo(true)}>+ Nuevo usuario</button></div>
-      <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Usuario</th><th>Roles</th><th>Estado</th><th /></tr></thead>
+      <div className="card overflow-hidden"><div className="overflow-x-auto"><table className="tbl"><thead><tr><ThOrden clave="nombre" orden={orden} alternar={alternar}>Usuario</ThOrden><ThOrden clave="roles" orden={orden} alternar={alternar}>Roles</ThOrden><ThOrden clave="estado" orden={orden} alternar={alternar}>Estado</ThOrden><th /></tr></thead>
         <tbody>{filas.map((u) => (
           <tr key={u.id}>
             <td className="font-medium">{u.nombre_completo}{u.id === yo && <span className="text-xs text-muted"> (vos)</span>}</td>
@@ -85,7 +89,15 @@ function Editor({ usuario, roles, rolesDe, permisos, scopes, cat, onCerrar }: { 
   const [activo, setActivo] = useState(usuario.activo);
   const [rs, setRs] = useState<string[]>(rolesDe);
   const [p, setP] = useState<UsuarioPermisos>(permisos ?? { usuario_id: usuario.id, visibilidad_nivel: "NADA", aprobacion_nivel: "NADA", modificacion_nivel: "NADA", reapertura_nivel: "NADA", control_ingreso: false, puede_ver_importes: true, puede_eliminar_cancelar: false, puede_importar: false, puede_exportar: false, puede_quitar_control_ingreso: false });
-  const [sc, setSc] = useState<Record<string, { area_id: string; sector_id: string; proceso_id: string }>>(() => Object.fromEntries(scopes.map((s) => [s.tipo_permiso, { area_id: s.area_id ?? "", sector_id: s.sector_id ?? "", proceso_id: s.proceso_id ?? "" }])));
+  // Alcance por tipo de permiso: varios elementos del nivel elegido (áreas, sectores o procesos).
+  type Alcance = { areas: string[]; sectores: string[]; procesos: string[] };
+  const [sc, setSc] = useState<Record<string, Alcance>>(() => Object.fromEntries(TIPOS.map((t) => {
+    const f = scopes.filter((x) => x.tipo_permiso === t.tipo);
+    return [t.tipo, { areas: f.map((x) => x.area_id).filter((x): x is string => !!x), sectores: f.map((x) => x.sector_id).filter((x): x is string => !!x), procesos: f.map((x) => x.proceso_id).filter((x): x is string => !!x) }];
+  })));
+  const opcAreas = useMemo(() => cat.areas.map((a) => ({ id: a.id, label: a.nombre })), [cat.areas]);
+  const opcSectores = useMemo(() => cat.sectores.map((x) => ({ id: x.id, label: x.nombre, grupo: cat.areas.find((a) => a.id === x.area_id)?.nombre ?? "" })), [cat.areas, cat.sectores]);
+  const opcProcesos = useMemo(() => cat.procesos.map((x) => { const sec = cat.sectores.find((y) => y.id === x.sector_id); return { id: x.id, label: x.nombre, grupo: `${cat.areas.find((a) => a.id === sec?.area_id)?.nombre ?? ""} · ${sec?.nombre ?? ""}` }; }), [cat.areas, cat.sectores, cat.procesos]);
   const [pass, setPass] = useState("");
   const [ocupado, setOcupado] = useState(false);
   // E-mail: vive en la cuenta de acceso de Supabase (no en las tablas de la app), por eso se lee/escribe vía el servidor.
@@ -129,12 +141,11 @@ function Editor({ usuario, roles, rolesDe, permisos, scopes, cat, onCerrar }: { 
         await paso(sb.from("usuario_permisos").upsert({ ...p, usuario_id: usuario.id }, { onConflict: "usuario_id" }));
         for (const t of TIPOS) {
           const nivel = p[t.campo]; const v = sc[t.tipo];
-          if (nivel === "AREA" || nivel === "SECTOR" || nivel === "PROCESO") {
-            const fila = { usuario_id: usuario.id, tipo_permiso: t.tipo, area_id: nivel === "AREA" ? v?.area_id || null : null, sector_id: nivel === "SECTOR" ? v?.sector_id || null : null, proceso_id: nivel === "PROCESO" ? v?.proceso_id || null : null };
-            const val = nivel === "AREA" ? fila.area_id : nivel === "SECTOR" ? fila.sector_id : fila.proceso_id;
-            if (!val) throw new Error(`Elegí el ${nivel.toLowerCase()} para «${t.nombre}».`);
-            await paso(sb.from("usuario_permiso_scopes").upsert(fila, { onConflict: "usuario_id,tipo_permiso" }));
-          } else await paso(sb.from("usuario_permiso_scopes").delete().eq("usuario_id", usuario.id).eq("tipo_permiso", t.tipo));
+          const ids = nivel === "AREA" ? v.areas : nivel === "SECTOR" ? v.sectores : nivel === "PROCESO" ? v.procesos : [];
+          if ((nivel === "AREA" || nivel === "SECTOR" || nivel === "PROCESO") && ids.length === 0) throw new Error(`Elegí al menos ${nivel === "AREA" ? "un área" : nivel === "SECTOR" ? "un sector" : "un proceso"} para «${t.nombre}».`);
+          // Reemplazo atómico del alcance (con TODO/NADA deja el permiso sin filas de alcance).
+          const { error } = await sb.rpc("rpc_guardar_alcance_usuario", { p_usuario_id: usuario.id, p_tipo: t.tipo, p_ids: ids });
+          if (error) throw new Error(/rpc_guardar_alcance_usuario|schema cache|Could not find/i.test(error.message) ? "Falta aplicar la migración 0006 en Supabase para guardar alcances." : error.message);
         }
       }
       toast("ok", "Cambios guardados"); router.refresh(); onCerrar();
@@ -166,14 +177,14 @@ function Editor({ usuario, roles, rolesDe, permisos, scopes, cat, onCerrar }: { 
           <label key={r.id} className="inline-flex items-center gap-2 text-sm card px-3 py-1.5" title={r.descripcion ?? undefined}><input type="checkbox" disabled={r.nombre === "DESARROLLADOR"} checked={rs.includes(r.id)} onChange={(e) => setRs(e.target.checked ? [...rs, r.id] : rs.filter((x) => x !== r.id))} />{ROL_LABEL[r.nombre] ?? r.nombre}</label>))}</div></section>
         {!esDev && <>
           <section><h3 className="font-semibold text-sm mb-1">Nivel y alcance por tipo de permiso</h3><p className="text-xs text-muted mb-3">«Todo» en visibilidad no da por sí solo permiso de aprobar, modificar ni reabrir: cada tipo se configura aparte.</p>
-            <div className="space-y-3">{TIPOS.map((t) => { const nivel = p[t.campo]; const v = sc[t.tipo] ?? { area_id: "", sector_id: "", proceso_id: "" }; return (
-              <div key={t.tipo} className="card p-3 grid sm:grid-cols-[11rem_9rem_1fr] gap-3 items-center">
+            <div className="space-y-3">{TIPOS.map((t) => { const nivel = p[t.campo]; const v = sc[t.tipo]; return (
+              <div key={t.tipo} className="card p-3 grid sm:grid-cols-[11rem_9rem_1fr] gap-3 items-start">
                 <div className="text-sm font-medium">{t.nombre}</div>
                 <select className="input" value={nivel} onChange={(e) => setP({ ...p, [t.campo]: e.target.value as Nivel })} aria-label={`Nivel: ${t.nombre}`}>{NIVELES.map((n) => <option key={n} value={n}>{NIVEL_LABEL[n]}</option>)}</select>
                 <div>
-                  {nivel === "AREA" && <select className="input" value={v.area_id} onChange={(e) => setSc({ ...sc, [t.tipo]: { ...v, area_id: e.target.value } })}><option value="">Elegir área…</option>{cat.areas.map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}</select>}
-                  {nivel === "SECTOR" && <select className="input" value={v.sector_id} onChange={(e) => setSc({ ...sc, [t.tipo]: { ...v, sector_id: e.target.value } })}><option value="">Elegir sector…</option>{cat.sectores.map((s) => <option key={s.id} value={s.id}>{cat.areas.find((a) => a.id === s.area_id)?.nombre} · {s.nombre}</option>)}</select>}
-                  {nivel === "PROCESO" && <select className="input" value={v.proceso_id} onChange={(e) => setSc({ ...sc, [t.tipo]: { ...v, proceso_id: e.target.value } })}><option value="">Elegir proceso…</option>{cat.procesos.map((x) => { const s = cat.sectores.find((s) => s.id === x.sector_id); return <option key={x.id} value={x.id}>{cat.areas.find((a) => a.id === s?.area_id)?.nombre} · {s?.nombre} · {x.nombre}</option>; })}</select>}
+                  {nivel === "AREA" && <SelectorMultiple etiqueta="áreas" singular="área" opciones={opcAreas} seleccion={v.areas} onChange={(ids) => setSc({ ...sc, [t.tipo]: { ...v, areas: ids } })} />}
+                  {nivel === "SECTOR" && <SelectorMultiple etiqueta="sectores" singular="sector" opciones={opcSectores} seleccion={v.sectores} onChange={(ids) => setSc({ ...sc, [t.tipo]: { ...v, sectores: ids } })} />}
+                  {nivel === "PROCESO" && <SelectorMultiple etiqueta="procesos" singular="proceso" opciones={opcProcesos} seleccion={v.procesos} onChange={(ids) => setSc({ ...sc, [t.tipo]: { ...v, procesos: ids } })} />}
                   {(nivel === "TODO" || nivel === "NADA") && <span className="text-xs text-muted">{nivel === "TODO" ? "Sin restricción de alcance" : "Sin permiso"}</span>}
                 </div>
               </div>); })}</div></section>

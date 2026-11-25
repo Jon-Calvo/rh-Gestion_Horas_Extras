@@ -26,6 +26,8 @@ export interface ConfigGeneral {
   retencion_auditoria_meses: number | null; zona_horaria: string; ultimo_reseteo_ranking: string | null;
   // Migración 0005 (opcionales: no vienen si todavía no se aplicó).
   horas_maximas_solicitud?: number | null; minutos_intervalo?: number; fichadas_redondeo_minutos?: number; fichadas_tolerancia_minutos?: number;
+  // Migración 0006.
+  sesion_horas_maximas?: number | null; sesion_cerrar_al_cerrar_navegador?: boolean;
 }
 export interface ConfigApariencia {
   id: number; nombre_empresa: string | null; logo_url: string | null; logo_url_secundario?: string | null; subtitulo_app?: string | null; nombre_empresa_secundario?: string | null; color_primario: string; color_primario_hover: string;

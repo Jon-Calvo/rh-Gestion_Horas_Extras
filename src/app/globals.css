@@ -94,3 +94,17 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-sans);
 dialog.modal { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 1rem; padding: 0; width: min(94vw, 34rem); max-height: 90vh; box-shadow: var(--shadow); margin: auto; }
 dialog.modal.wide { width: min(96vw, 52rem); }
 dialog.modal::backdrop { background: rgb(2 6 23 / 0.55); backdrop-filter: blur(2px); }
+
+/* Impresión / "Guardar como PDF" (Estadísticas y otras pantallas): hoja clara, sin menú ni controles. */
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  :root, [data-theme="dark"] { --bg: #ffffff; --surface: #ffffff; --surface-2: #f1f3f9; --border: #d9deea; --text: #0f172a; --muted: #5b6579; --shadow: none; color-scheme: light; }
+  html, body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  aside, header.sticky, .no-print { display: none !important; }
+  .lg\:pl-64, .lg\:pl-\[4\.5rem\] { padding-left: 0 !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  .card { box-shadow: none !important; break-inside: avoid; page-break-inside: avoid; }
+  .solo-print { display: block !important; }
+  .fade-in { animation: none !important; opacity: 1 !important; }
+}
+.solo-print { display: none; }

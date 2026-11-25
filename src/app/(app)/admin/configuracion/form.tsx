@@ -26,6 +26,11 @@ export function ConfiguracionForm({ general, apariencia }: { general: R | null; 
         horas_maximas_solicitud: g.horas_maximas_solicitud === "" || g.horas_maximas_solicitud == null ? null : parseDecimal(String(g.horas_maximas_solicitud)),
         minutos_intervalo: Number(g.minutos_intervalo ?? 1), fichadas_redondeo_minutos: Number(g.fichadas_redondeo_minutos ?? 0), fichadas_tolerancia_minutos: Number(g.fichadas_tolerancia_minutos ?? 0),
       } : {}),
+      // Columnas de la migración 0006.
+      ...("sesion_horas_maximas" in g ? {
+        sesion_horas_maximas: g.sesion_horas_maximas === "" || g.sesion_horas_maximas == null ? null : Number(g.sesion_horas_maximas),
+        sesion_cerrar_al_cerrar_navegador: g.sesion_cerrar_al_cerrar_navegador !== false,
+      } : {}),
     }).eq("id", 1);
     if (e1) { setOcupado(false); toast("error", mensajeError(e1)); return; }
     const { error: e2 } = await sb.from("configuracion_apariencia").update({
@@ -59,6 +64,12 @@ export function ConfiguracionForm({ general, apariencia }: { general: R | null; 
               {[[0, "Sin redondeo (minuto exacto)"], [5, "5 minutos"], [10, "10 minutos"], [15, "15 minutos"], [30, "30 minutos"], [60, "1 hora"]].map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></Campo>
           </div>
         ) : <p className="text-sm text-muted">El límite de horas, el paso de minutos y la conciliación se habilitan al aplicar la migración 0005 en Supabase.</p>}
+        {"sesion_horas_maximas" in g ? (
+          <div className="grid sm:grid-cols-2 gap-4 pt-2 border-t">
+            <Campo etiqueta="Duración máxima de la sesión (horas)" ayuda="Pasado este tiempo desde el ingreso, hay que volver a iniciar sesión. De 1 a 720; vacío = sin límite. Se aplica a los próximos ingresos."><input className="input" type="number" min={1} max={720} placeholder="Ej.: 12" value={g.sesion_horas_maximas ?? ""} onChange={(e) => setG({ ...g, sesion_horas_maximas: e.target.value })} /></Campo>
+            <label className="flex items-start gap-2 text-sm sm:pt-6"><input type="checkbox" className="mt-1" checked={g.sesion_cerrar_al_cerrar_navegador !== false} onChange={(e) => setG({ ...g, sesion_cerrar_al_cerrar_navegador: e.target.checked })} /> <span>Cerrar la sesión al cerrar el navegador<span className="block text-xs text-muted">Si el navegador restaura las pestañas al abrirse, puede mantener la sesión hasta que venza la duración máxima.</span></span></label>
+          </div>
+        ) : <p className="text-sm text-muted">La duración de sesión se habilita al aplicar la migración 0006 en Supabase.</p>}
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!g.emails_activos} onChange={(e) => setG({ ...g, emails_activos: e.target.checked })} /> Emails activos</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!g.control_ingreso_permite_eliminar} onChange={(e) => setG({ ...g, control_ingreso_permite_eliminar: e.target.checked })} /> Permitir quitar un control de ingreso ya registrado (además requiere el permiso individual)</label>
       </section>

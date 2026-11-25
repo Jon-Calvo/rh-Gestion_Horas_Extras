@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { fmtFecha, fmtFechaHora } from "@/lib/format";
+import { resumenFeriadosFactores } from "@/lib/feriados-csv";
 import { APROBACION_LABEL, ASISTENCIA_LABEL, SITUACION_LABEL, type BandaHoraria, type DetalleCalculo, type EmpleadoDetalle, type EmpleadoResumen, type SolicitudResumen } from "@/lib/types";
 
 const lotes = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
@@ -23,6 +24,7 @@ export async function armarCsvSolicitudes(sb: SupabaseClient, filas: SolicitudRe
   const detalle: DetalleCalculo[] = [];
   for (const l of lotes(emps.map((e) => e.solicitud_empleado_id), 80)) detalle.push(...(await fetchAll<DetalleCalculo>((d, h) => sb.from("solicitud_empleado_detalle").select("*").in("solicitud_empleado_id", l).order("id").range(d, h))));
 
+  const feriados = new Map((await fetchAll<{ fecha: string; descripcion: string | null }>((d, h) => sb.from("feriados").select("fecha, descripcion").order("fecha").range(d, h))).map((f) => [f.fecha, f.descripcion]));
   const bandas = (await fetchAll<BandaHoraria>((d, h) => sb.from("bandas_horarias").select("*").range(d, h)));
   const resEmp = new Map<string, EmpleadoResumen>();
   for (const l of lotes([...new Set(emps.map((e) => e.empleado_id))], 100)) for (const r of await fetchAll<EmpleadoResumen>((d, h) => sb.from("vista_empleados_resumen").select("*").in("id", l).order("id").range(d, h))) resEmp.set(r.id, r);
@@ -35,7 +37,7 @@ export async function armarCsvSolicitudes(sb: SupabaseClient, filas: SolicitudRe
     .sort((a, b) => Number(a.multiplicador) - Number(b.multiplicador) || a.descripcion.localeCompare(b.descripcion, "es"));
 
   const cab = ["N°Solicitud", "FechaSolicitud", "Solicitante", "FechaInicioExtra", "HoraInicioExtra", "FechaFinExtra", "HoraFinExtra", "MotivoExtra", "TipoMotivo", "AreaExtra", "SectorExtra", "ProcesoExtra", "StatusSolicitud", "ObservacionExtra",
-    "Legajo", "Colaborador", "Categoria", "TipoEmpleado", "StatusColaborador", "IB", "RankingHoras", "EstadoAprobacion", "MotivoRechazo", "UsuarioAprobacion", "FechaAprobacion", "EstadoIngreso", "FechaIngreso", "ObservacionIngreso", "CantidadHoras", "HorasReales", "InicioReal", "FinReal", "OrigenTiempoReal", "ObservacionTiempoReal",
+    "Legajo", "Colaborador", "Categoria", "TipoEmpleado", "StatusColaborador", "IB", "RankingHoras", "EstadoAprobacion", "MotivoRechazo", "UsuarioAprobacion", "FechaAprobacion", "EstadoIngreso", "FechaIngreso", "ObservacionIngreso", "CantidadHoras", "HorasReales", "InicioReal", "FinReal", "OrigenTiempoReal", "ObservacionTiempoReal", "FeriadosEnExtra", "HsFeriado", "FactoresAplicados",
     ...usadas.flatMap((b) => [`Hs ${b.descripcion}`, ...(verImportes ? [`ValorHs ${b.descripcion}`, `Total ${b.descripcion}`] : [])]),
     ...(verImportes ? ["Moneda", "TotalImporte", "ImporteReal"] : [])];
 
@@ -48,6 +50,7 @@ export async function armarCsvSolicitudes(sb: SupabaseClient, filas: SolicitudRe
     for (const e of es) {
       const det = porSe.get(e.solicitud_empleado_id) ?? [];
       const r = resEmp.get(e.empleado_id);
+      const ff = resumenFeriadosFactores(det, bandas, feriados);
       const porBanda = usadas.flatMap((b) => {
         const d = det.filter((x) => x.banda_horaria_id === b.id);
         const hs = d.reduce((a, x) => a + Number(x.horas), 0), tot = d.reduce((a, x) => a + Number(x.importe), 0);
@@ -60,6 +63,7 @@ export async function armarCsvSolicitudes(sb: SupabaseClient, filas: SolicitudRe
         e.estado_asistencia === "NO_APLICA" ? "" : ASISTENCIA_LABEL[e.estado_asistencia], e.fecha_hora_ingreso ? fmtFechaHora(e.fecha_hora_ingreso, zona).replace(", ", " ") : "", e.observacion_control_ingreso ?? "", hhmm(Number(e.total_horas)),
         e.horas_reales != null ? hhmm(Number(e.horas_reales)) : "", e.real_inicio ? fmtFechaHora(e.real_inicio, zona).replace(", ", " ") : "", e.real_fin ? fmtFechaHora(e.real_fin, zona).replace(", ", " ") : "",
         e.real_origen === "FICHADA" ? "Fichada" : e.real_origen === "MANUAL" ? "Manual" : "", e.observacion_real ?? "",
+        ff.feriados, ff.horasFeriado, ff.factores,
       ].map((x, i) => (i < 14 ? x : texto(x))).concat(porBanda, verImportes ? [s.moneda ?? "", e.total_importe != null ? dec(Number(e.total_importe)) : "", e.importe_real != null ? dec(Number(e.importe_real)) : ""] : []).map((x) => celda(String(x))).join(";"));
     }
   }

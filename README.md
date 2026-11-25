@@ -21,6 +21,17 @@ Ingreso · Panel · Solicitudes (lista, nueva, detalle con aprobación por emple
 - **Segundo logo y segundo nombre** (Configuración → Apariencia): el encabezado del menú conserva logo 1, nombre 1 y el texto gris; el logo 2 y el nombre 2 van al pie del menú y en la pantalla de ingreso. El **texto gris** (antes fijo «Horas extras») es editable. Requieren las migraciones `0003` (logo 2 y nombre 2) y `0004` (texto gris); sin ellas la pantalla funciona igual y avisa que falta.
 - **Contadores en el menú**: «Aprobaciones» (solicitudes en aprobación dentro de tu alcance) y «Control de ingreso» (aprobadas pendientes de control) muestran un número rojo. Se actualizan al navegar, al volver a la pestaña y cada 60 s (`/api/pendientes`).
 
+## Novedades (sexta tanda)
+
+Requiere la migración `0006_alcances_multiples_y_sesion.sql` (aplicarla **antes** de publicar esta versión).
+
+- **Duración de la sesión** (Administración → Configuración): horas máximas desde el ingreso y «cerrar la sesión al cerrar el navegador». La web guarda la cookie `he_sesion` al iniciar sesión y el proxy la revisa en cada pedido. Se aplica a los próximos ingresos; quienes ya estaban conectados deberán ingresar una vez más. Para un corte estricto del lado del servidor, Supabase ofrece además «Time-box user sessions» (plan Pro).
+- **Catálogos**: orden al hacer clic en el encabezado (↑ ↓) y buscador. **Usuarios**: orden por encabezado.
+- **Estadísticas**: botón «Exportar PDF» (abre la impresión del navegador: destino «Guardar como PDF»; hoja A4 apaisada, tema claro, sin menú).
+- **Permisos con varios elementos**: cada permiso (ver, aprobar, modificar, reabrir) admite varias áreas, varios sectores o varios procesos, según su nivel. Se guarda con `rpc_guardar_alcance_usuario` (reemplazo atómico).
+- **Excel de solicitudes**: columnas `FeriadosEnExtra`, `HsFeriado` y `FactoresAplicados` (un renglón por día, banda y factor usado).
+- Pruebas: `npx tsx --tsconfig tsconfig.json tests/sesion.test.ts`, `tests/feriados-csv.test.ts`.
+
 ## Novedades (quinta tanda)
 
 Requiere la migración `0005_limites_tipo_empleado_y_fichadas.sql` (aplicarla **antes** de publicar esta versión).

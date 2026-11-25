@@ -1,0 +1,12 @@
+import { estadoSesion, valorCookieSesion, atributosCookieSesion } from "../src/lib/sesion";
+let fallos = 0; const t = (n: string, c: boolean) => { if (!c) { fallos++; console.log("FAIL:", n); } else console.log("PASS:", n); };
+const H = 3600_000, ahora = 1_800_000_000_000;
+t("sin cookie => sin_cookie", estadoSesion(undefined, ahora) === "sin_cookie" && estadoSesion("", ahora) === "sin_cookie");
+t("cookie mal formada => sin_cookie", estadoSesion("abc", ahora) === "sin_cookie" && estadoSesion("1.2", ahora) === "sin_cookie");
+t("dentro del plazo => ok", estadoSesion(valorCookieSesion(12, true, ahora - 11 * H), ahora) === "ok");
+t("pasado el plazo => vencida", estadoSesion(valorCookieSesion(12, true, ahora - 13 * H), ahora) === "vencida");
+t("sin límite (null) nunca vence", estadoSesion(valorCookieSesion(null, false, ahora - 5000 * H), ahora) === "ok");
+t("cerrar al salir => cookie de sesión (sin Max-Age)", atributosCookieSesion(12, true) === "");
+t("no cerrar al salir => Max-Age = horas", atributosCookieSesion(12, false) === "; Max-Age=43200");
+t("sin límite y sin cierre => Max-Age largo", atributosCookieSesion(null, false).startsWith("; Max-Age=345"));
+process.exit(fallos ? 1 : 0);

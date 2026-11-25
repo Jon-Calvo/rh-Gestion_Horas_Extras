@@ -3,6 +3,7 @@ import { TIPO_LABEL, type ComparativoTipos, type Kpis, type TipoPago } from "@/l
 import { PageHeader, Vacio } from "@/components/ui/misc";
 import { SITUACION_LABEL, type Situacion } from "@/lib/types";
 import { SelectorMes } from "./selector-mes";
+import { BotonPdf } from "./boton-pdf";
 import { Delta, KpiCard, Mix, Tendencia, TopLista, fh, fi, mesLargo } from "./graficos";
 
 export interface TopEmp { nombre: string; legajo: string; horas: number; importe: number; solicitudes: number }
@@ -23,7 +24,8 @@ export function VistaEstadisticas({ k, te, mes, hoy, verImp, hayDatos, tipo, com
 
   return (
     <>
-      <PageHeader titulo="Estadísticas" subtitulo={`Mes de la extra: ${mesLargo(mes)}.${tipo ? ` Solo empleados ${TIPO_LABEL[tipo].toLowerCase()}.` : ""} Se cuentan las solicitudes en aprobación, aprobadas, rechazadas y finalizadas que podés ver.`} acciones={<SelectorMes mes={mes} actual={hoy} tipo={tipo} conTipo={comp !== null} />} />
+      <PageHeader titulo="Estadísticas" subtitulo={`Mes de la extra: ${mesLargo(mes)}.${tipo ? ` Solo empleados ${TIPO_LABEL[tipo].toLowerCase()}.` : ""} Se cuentan las solicitudes en aprobación, aprobadas, rechazadas y finalizadas que podés ver.`} acciones={<><SelectorMes mes={mes} actual={hoy} tipo={tipo} conTipo={comp !== null} /><BotonPdf nombreArchivo={`Estadisticas-${mes}${tipo ? `-${TIPO_LABEL[tipo]}` : ""}`} /></>} />
+      <div className="solo-print mb-3 text-sm" aria-hidden>Estadísticas · {mesLargo(mes)}{tipo ? ` · ${TIPO_LABEL[tipo]}` : " · Jornal y mensual"} · Generado el {new Date().toLocaleDateString("es-AR")}</div>
       {!hayDatos && <Vacio titulo="Sin solicitudes en el período" detalle="No hay solicitudes de los últimos 6 meses con tu alcance de visibilidad." />}
       {hayDatos && <>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
@@ -52,8 +54,8 @@ export function VistaEstadisticas({ k, te, mes, hoy, verImp, hayDatos, tipo, com
         {comp && !comp.hayTipos && <p className="text-xs rounded-lg px-3 py-2 mb-3" style={{ background: "color-mix(in srgb, var(--warning) 14%, transparent)" }}>La comparación Jornal vs Mensual aparece cuando hay empleados con tipo asignado. Asignalo en Empleados (editar o importar con la columna «tipo»).</p>}
         {comp && comp.hayTipos && <section className="card overflow-hidden mb-3">
           <div className="px-4 pt-4 pb-2"><h3 className="font-semibold text-sm">Jornal vs Mensual · {mesLargo(mes)}</h3><p className="text-xs text-muted">Solo empleados aprobados. Esta tabla muestra siempre ambos tipos, aunque filtres arriba.</p></div>
-          <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Tipo</th><th className="text-right">Empleados</th><th className="text-right">Solicitudes</th><th className="text-right">Horas</th><th className="text-right">% de horas</th><th className="text-right">Horas por empleado</th>{verImp && comp.moneda && <><th className="text-right">Importe ({comp.moneda})</th><th className="text-right">Costo por hora</th></>}<th className="text-right">{ant}</th></tr></thead>
-            <tbody>{(() => { const tot = comp.filas.reduce((x, f) => x + f.horas, 0); return comp.filas.map((f) => <tr key={f.tipo}><td className="font-medium">{TIPO_LABEL[f.tipo]}</td><td className="text-right tabular-nums">{nStr(f.empleados)}</td><td className="text-right tabular-nums">{nStr(f.solicitudes)}</td><td className="text-right tabular-nums font-medium">{fh(f.horas)}</td><td className="text-right tabular-nums">{tot > 0 ? pctTxt((f.horas / tot) * 100) : "—"}</td><td className="text-right tabular-nums">{f.empleados > 0 ? fmtHoras(f.horas / f.empleados) : "—"}</td>{verImp && comp.moneda && <><td className="text-right tabular-nums">{fimp(f.importe)}</td><td className="text-right tabular-nums">{f.horas > 0 ? fmtImporte(f.importe / f.horas) : "—"}</td></>}<td className="text-right tabular-nums text-muted">{fh(f.horasPrevio)}</td></tr>); })()}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Tipo</th><th className="text-right">Empleados</th><th className="text-right">Solicitudes</th><th className="text-right">Horas</th><th className="text-right">% de horas</th><th className="text-right">Horas por empleado</th>{verImp && comp.moneda && <><th className="text-right">Importe ({comp.moneda})</th><th className="text-right">Costo por hora</th></>}<th className="text-right">Horas {ant}</th></tr></thead>
+            <tbody>{(() => { const tot = comp.filas.reduce((x, f) => x + f.horas, 0); return comp.filas.map((f) => <tr key={f.tipo}><td className="font-medium">{TIPO_LABEL[f.tipo]}</td><td className="text-right tabular-nums">{nStr(f.empleados)}</td><td className="text-right tabular-nums">{nStr(f.solicitudes)}</td><td className="text-right tabular-nums font-medium whitespace-nowrap">{fh(f.horas)}</td><td className="text-right tabular-nums">{tot > 0 ? pctTxt((f.horas / tot) * 100) : "—"}</td><td className="text-right tabular-nums">{f.empleados > 0 ? fmtHoras(f.horas / f.empleados) : "—"}</td>{verImp && comp.moneda && <><td className="text-right tabular-nums whitespace-nowrap">{fimp(f.importe)}</td><td className="text-right tabular-nums">{f.horas > 0 ? fmtImporte(f.importe / f.horas) : "—"}</td></>}<td className="text-right tabular-nums text-muted whitespace-nowrap">{fh(f.horasPrevio)}</td></tr>); })()}</tbody></table></div>
         </section>}
 
         <section className="card overflow-hidden mb-3">

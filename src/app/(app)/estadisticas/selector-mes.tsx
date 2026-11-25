@@ -7,7 +7,7 @@ export function SelectorMes({ mes, actual, tipo, conTipo }: { mes: string; actua
   const url = (m: string, t: string | null) => { const p = new URLSearchParams(); if (m !== actual) p.set("mes", m); if (t) p.set("tipo", t); const q = p.toString(); return q ? `/estadisticas?${q}` : "/estadisticas"; };
   const ir = (m: string) => { if (/^\d{4}-\d{2}$/.test(m)) router.push(url(m, tipo)); };
   return (
-    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtros de estadísticas">
+    <div className="no-print flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtros de estadísticas">
       {conTipo && <select className="input !w-44" value={tipo ?? ""} aria-label="Tipo de empleado" onChange={(e) => router.push(url(mes, e.target.value || null))}>
         <option value="">Jornal y mensual</option><option value="JORNAL">Solo jornal</option><option value="MENSUAL">Solo mensual</option>
       </select>}

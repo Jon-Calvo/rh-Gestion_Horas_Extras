@@ -4,7 +4,8 @@ import { LoginForm } from "./login-form";
 export const metadata = { title: "Ingresar" };
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
+  const m = (await searchParams).m;
   const ap = await getApariencia().catch(() => null);
   return (
     <div className="min-h-dvh grid lg:grid-cols-2">
@@ -27,7 +28,7 @@ export default async function LoginPage() {
           <p className="text-sm text-white/60">Acceso solo para personal autorizado.</p>
         </div>
       </div>
-      <div className="grid place-items-center p-6"><LoginForm /></div>
+      <div className="grid place-items-center p-6"><LoginForm aviso={m === "sesion" ? "Tu sesión finalizó. Ingresá de nuevo." : undefined} /></div>
     </div>
   );
 }
