@@ -6,7 +6,7 @@ import { CatalogosAdmin } from "./catalogos";
 
 export const metadata = { title: "Catálogos" };
 
-const TABLAS = ["areas", "sectores", "procesos", "motivos", "categoria_tipos", "categorias", "bandas_horarias", "feriados", "ib_configuracion", "bandas_ranking"] as const;
+const TABLAS = ["areas", "sectores", "procesos", "motivos", "categoria_tipos", "categorias", "conceptos_horarios", "bandas_horarias", "feriados", "ib_configuracion", "bandas_ranking"] as const;
 
 export default async function Catalogos() {
   const s = (await getSesion())!;

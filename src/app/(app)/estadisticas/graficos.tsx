@@ -2,7 +2,7 @@ import { fmtHoras, fmtImporte } from "@/lib/format";
 import { pct, type ItemTop, type MesKpi } from "@/lib/kpis";
 
 const nf = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-export const mesLargo = (m: string) => new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${m}-15T12:00:00Z`));
+export const mesLargo = (m: string) => /^\d{4}$/.test(m) ? `año ${m}` : new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${m}-15T12:00:00Z`));
 const mesCorto = (m: string) => new Intl.DateTimeFormat("es-AR", { month: "short", timeZone: "UTC" }).format(new Date(`${m}-15T12:00:00Z`)).replace(".", "");
 
 /** Variación contra el mes anterior, en valor y en porcentaje. Es informativa: no pinta "bueno/malo". */
@@ -29,7 +29,7 @@ export function KpiCard({ titulo, valor, children, ayuda }: { titulo: string; va
 }
 
 /** Ranking de barras horizontales. El valor siempre figura como texto. */
-export function TopLista({ titulo, items, formato, vacio = "Sin datos en el mes", pie }: { titulo: string; items: { clave: string; nombre: string; detalle?: string; v: number; extra?: string }[]; formato: (n: number) => string; vacio?: string; pie?: string }) {
+export function TopLista({ titulo, items, formato, vacio = "Sin datos en el período", pie }: { titulo: string; items: { clave: string; nombre: string; detalle?: string; v: number; extra?: string }[]; formato: (n: number) => string; vacio?: string; pie?: string }) {
   const max = Math.max(...items.map((i) => i.v), 0);
   return (
     <section className="card p-4">
@@ -79,7 +79,7 @@ export function Mix({ productivo, improductivo }: { productivo: number; improduc
   return (
     <section className="card p-4">
       <h3 className="font-semibold text-sm mb-3">Horas aprobadas: productivas vs improductivas</h3>
-      {t === 0 ? <p className="text-sm text-muted py-4">Sin datos en el mes</p> : <>
+      {t === 0 ? <p className="text-sm text-muted py-4">Sin datos en el período</p> : <>
         <div className="flex h-3 rounded-full overflow-hidden" role="img" aria-label={`Productivas ${nf.format(p)} %, improductivas ${nf.format(100 - p)} %`}>
           <div style={{ width: `${p}%`, background: "var(--success)" }} /><div style={{ width: `${100 - p}%`, background: "var(--warning)" }} />
         </div>

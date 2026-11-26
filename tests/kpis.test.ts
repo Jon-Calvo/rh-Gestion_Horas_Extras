@@ -1,4 +1,4 @@
-import { calcularKpis, mesDe, sumarMeses, pct, topEmpleados, filtrarSolicitudesPorTipo, comparativoTipos } from "../src/lib/kpis";
+import { filtrarSolicitudes, opcionesFiltros, periodoAnterior, enPeriodo, calcularKpis, mesDe, sumarMeses, pct, topEmpleados, filtrarSolicitudesPorTipo, comparativoTipos } from "../src/lib/kpis";
 let fallos = 0; const t = (n: string, ok: boolean, d?: unknown) => { console.log((ok ? "PASS " : "FAIL ") + n + (ok ? "" : " -> " + JSON.stringify(d))); if (!ok) fallos++; };
 const Z = "America/Argentina/Buenos_Aires";
 const f = (o: Partial<any>): any => ({ situacion: "APROBADA", fecha_hora_inicio: "2026-11-10T12:00:00Z", area_nombre: "A", sector_nombre: "S1", proceso_nombre: "P1", motivo_nombre: "M1", motivo_tipo: "PRODUCTIVO", moneda: "ARS", horas_aprobadas: 10, horas_rechazadas: 0, horas_pendientes: 0, importe_aprobado: 1000, ...o });
@@ -62,4 +62,23 @@ t("comparativo: jornal 4 h / 1 empleado / octubre 5 h", g("JORNAL").horas === 4 
 t("comparativo: mensual cuenta empleados distintos en 2 solicitudes", g("MENSUAL").horas === 9 && g("MENSUAL").empleados === 1 && g("MENSUAL").solicitudes === 2 && g("MENSUAL").importe === 1350, g("MENSUAL"));
 t("comparativo: 'sin tipo' aparece solo si tiene horas y reemplazados no cuentan", g("SIN").horas === 1 && ct.filas.length === 3 && ct.hayTipos);
 t("comparativo sin importes", comparativoTipos(eT, sT as any, "2026-11", Z, false, null).filas.every((x) => x.importe === 0));
+
+// --- Año completo y filtros ---
+const g2 = (o: Partial<any>): any => f({ area_id: "A1", sector_id: "S1", proceso_id: "P1", solicitante_id: "U1", solicitante_nombre: "Ana", ...o });
+const fa = [
+  g2({ fecha_hora_inicio: "2026-02-10T12:00:00Z", horas_aprobadas: 10 }), g2({ fecha_hora_inicio: "2026-11-10T12:00:00Z", horas_aprobadas: 5, sector_id: "S2", area_id: "A2", sector_nombre: "Sec2", area_nombre: "Ar2", solicitante_id: "U2", solicitante_nombre: "Beto" }),
+  g2({ fecha_hora_inicio: "2025-03-10T12:00:00Z", horas_aprobadas: 20 }), g2({ fecha_hora_inicio: "2025-12-31T12:00:00Z", horas_aprobadas: 4 }), g2({ fecha_hora_inicio: "2024-12-10T12:00:00Z", horas_aprobadas: 99 }),
+];
+const ka = calcularKpis(fa as any, "2026", Z, true);
+t("año: 12 meses en la serie, esAnio", ka.esAnio && ka.serie.length === 12 && ka.serie[0].mes === "2026-01" && ka.serie[11].mes === "2026-12");
+t("año: actual suma el año; previo = año anterior; 2024 queda afuera", ka.actual.horasAprob === 15 && ka.previo.horasAprob === 24 && ka.anterior === "2025", [ka.actual.horasAprob, ka.previo.horasAprob]);
+t("año: la serie ubica cada mes", ka.serie[1].horasAprob === 10 && ka.serie[10].horasAprob === 5);
+t("año: tops usan todo el año", ka.topSectorHoras.length === 2);
+t("periodoAnterior / enPeriodo", periodoAnterior("2026") === "2025" && periodoAnterior("2026-01") === "2025-12" && enPeriodo("2026-05", "2026") && !enPeriodo("2025-05", "2026") && enPeriodo("2026-05", "2026-05") && !enPeriodo("2026-05", "2026-06"));
+const fs = filtrarSolicitudes(fa as any, { area: "A2", sector: null, proceso: null, solicitante: null });
+t("filtro por área de la solicitud", fs.length === 1 && fs[0].area_id === "A2");
+t("filtros combinados y solicitante", filtrarSolicitudes(fa as any, { area: "A1", sector: "S1", proceso: "P1", solicitante: "U1" }).length === 4 && filtrarSolicitudes(fa as any, { area: null, sector: null, proceso: null, solicitante: "U2" }).length === 1);
+t("sin filtros devuelve todo", filtrarSolicitudes(fa as any, { area: null, sector: null, proceso: null, solicitante: null }).length === 5);
+const op = opcionesFiltros(fa as any);
+t("opciones únicas y ordenadas", op.areas.length === 2 && op.sectores.length === 2 && op.solicitantes.map((x) => x.nombre).join() === "Ana,Beto" && op.sectores.find((x) => x.id === "S2")!.area_id === "A2");
 console.log(fallos === 0 ? "TODOS OK" : `${fallos} FALLOS`); process.exit(fallos ? 1 : 0);

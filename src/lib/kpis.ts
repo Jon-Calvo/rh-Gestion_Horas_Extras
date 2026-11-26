@@ -8,6 +8,8 @@ export const SITUACIONES_KPI = ["EN_APROBACION", "APROBADA", "RECHAZADA", "FINAL
 export interface MesKpi { mes: string; solicitudes: number; horasAprob: number; horasRech: number; horasPend: number; horasFinalizadas: number; importeAprob: Record<string, number> }
 export interface ItemTop { clave: string; nombre: string; detalle?: string; horas: number; importe: number; solicitudes: number }
 export interface Kpis {
+  /** Período elegido: "YYYY-MM" (un mes) o "YYYY" (año completo, con esAnio = true). */
+  esAnio: boolean;
   mes: string; anterior: string; actual: MesKpi; previo: MesKpi; serie: MesKpi[];
   monedaPrincipal: string | null; otrasMonedas: string[];
   topProcesoHoras: ItemTop[]; topProcesoImporte: ItemTop[]; topMotivoHoras: ItemTop[]; topMotivoImporte: ItemTop[]; topSectorHoras: ItemTop[];
@@ -33,10 +35,32 @@ export function pct(actual: number, anterior: number): number | null { return an
 const num = (v: unknown) => Number(v ?? 0) || 0;
 const vacio = (mes: string): MesKpi => ({ mes, solicitudes: 0, horasAprob: 0, horasRech: 0, horasPend: 0, horasFinalizadas: 0, importeAprob: {} });
 
+/** Período "YYYY" (año completo) o "YYYY-MM" (un mes). */
+export const esPeriodoAnio = (p: string) => /^\d{4}$/.test(p);
+/** Período inmediatamente anterior (mes anterior o año anterior). */
+export const periodoAnterior = (p: string) => (esPeriodoAnio(p) ? String(Number(p) - 1) : sumarMeses(p, -1));
+/** ¿El mes "YYYY-MM" cae dentro del período? */
+export const enPeriodo = (mes: string, p: string) => (esPeriodoAnio(p) ? mes.startsWith(`${p}-`) : mes === p);
+const mesesDelAnio = (anio: number) => Array.from({ length: 12 }, (_, i) => `${anio}-${String(i + 1).padStart(2, "0")}`);
+const sumarMesKpi = (clave: string, l: MesKpi[]): MesKpi => {
+  const r = vacio(clave);
+  for (const k of l) {
+    r.solicitudes += k.solicitudes; r.horasAprob += k.horasAprob; r.horasRech += k.horasRech; r.horasPend += k.horasPend; r.horasFinalizadas += k.horasFinalizadas;
+    for (const [mo, v] of Object.entries(k.importeAprob)) r.importeAprob[mo] = (r.importeAprob[mo] ?? 0) + v;
+  }
+  return r;
+};
+
+/**
+ * Indicadores de un período: un mes ("2026-11": serie de 6 meses, contra el mes anterior) o el año completo ("2026": serie de
+ * 12 meses, contra el año anterior). Las solicitudes se ubican por el mes de inicio de la extra.
+ */
 export function calcularKpis(filas: SolicitudResumen[], mes: string, zona: string, verImportes: boolean): Kpis {
+  const esAnio = esPeriodoAnio(mes);
   const validas = filas.filter((f) => (SITUACIONES_KPI as readonly string[]).includes(f.situacion));
-  const meses = Array.from({ length: 6 }, (_, i) => sumarMeses(mes, i - 5));
-  const serie = new Map<string, MesKpi>(meses.map((m) => [m, vacio(m)]));
+  const meses = esAnio ? mesesDelAnio(Number(mes)) : Array.from({ length: 6 }, (_, i) => sumarMeses(mes, i - 5));
+  const mesesPrev = esAnio ? mesesDelAnio(Number(mes) - 1) : [];
+  const serie = new Map<string, MesKpi>([...meses, ...mesesPrev].map((m) => [m, vacio(m)]));
   const delMes: SolicitudResumen[] = [];
   for (const f of validas) {
     const m = mesDe(f.fecha_hora_inicio, zona);
@@ -45,7 +69,7 @@ export function calcularKpis(filas: SolicitudResumen[], mes: string, zona: strin
     k.horasAprob += num(f.horas_aprobadas); k.horasRech += num(f.horas_rechazadas); k.horasPend += num(f.horas_pendientes);
     if (f.situacion === "FINALIZADA") k.horasFinalizadas += num(f.horas_aprobadas);
     if (verImportes && f.importe_aprobado != null) { const mo = f.moneda ?? "—"; k.importeAprob[mo] = (k.importeAprob[mo] ?? 0) + num(f.importe_aprobado); }
-    if (m === mes) delMes.push(f);
+    if (enPeriodo(m, mes)) delMes.push(f);
   }
   // Los importes de distintas monedas no se suman: se muestra la moneda principal (ARS si existe, si no la de mayor monto) y se avisa del resto.
   const tot: Record<string, number> = {};
@@ -75,9 +99,11 @@ export function calcularKpis(filas: SolicitudResumen[], mes: string, zona: strin
   const porSituacion: Record<string, number> = {};
   for (const f of delMes) porSituacion[f.situacion] = (porSituacion[f.situacion] ?? 0) + 1;
 
-  const lista = [...serie.values()];
+  const lista = meses.map((m) => serie.get(m)!);
+  const actual = esAnio ? sumarMesKpi(mes, lista) : lista[5];
+  const previo = esAnio ? sumarMesKpi(periodoAnterior(mes), mesesPrev.map((m) => serie.get(m)!)) : lista[4];
   return {
-    mes, anterior: sumarMeses(mes, -1), actual: lista[5], previo: lista[4], serie: lista,
+    esAnio, mes, anterior: periodoAnterior(mes), actual, previo, serie: lista,
     monedaPrincipal: principal, otrasMonedas: verImportes ? monedas.filter((m) => m !== principal) : [],
     topProcesoHoras: top(procesos, "horas"), topProcesoImporte: verImportes ? top(procesos, "importe") : [],
     topMotivoHoras: top(motivos, "horas"), topMotivoImporte: verImportes ? top(motivos, "importe") : [], topSectorHoras: top(sectores, "horas"), mix, porSituacion,
@@ -131,19 +157,46 @@ export interface ComparativoTipos { filas: FilaTipo[]; moneda: string | null; ha
 /** Jornal vs Mensual del mes elegido (y del anterior): solo empleados aprobados. Importe solo de la moneda principal. */
 export function comparativoTipos(emps: EmpKpi[], solicitudes: SolicitudResumen[], mes: string, zona: string, verImportes: boolean, moneda: string | null): ComparativoTipos {
   const sol = new Map(solicitudes.map((s) => [s.id, s]));
-  const ant = sumarMeses(mes, -1);
+  const ant = periodoAnterior(mes);
   const acc = new Map<string, FilaTipo & { _e: Set<string>; _s: Set<string> }>();
   const get = (t: TipoPago | "SIN") => { let x = acc.get(t); if (!x) { x = { tipo: t, empleados: 0, solicitudes: 0, horas: 0, horasPrevio: 0, importe: 0, importePrevio: 0, _e: new Set(), _s: new Set() }; acc.set(t, x); } return x; };
   for (const t of [...TIPOS_PAGO, "SIN" as const]) get(t);
   for (const e of emps) {
     if (e.estado_registro !== "ACTIVO" || e.estado_aprobacion !== "APROBADO") continue;
     const s = sol.get(e.solicitud_id); if (!s) continue;
-    const m = mesDe(s.fecha_hora_inicio, zona); if (m !== mes && m !== ant) continue;
+    const m = mesDe(s.fecha_hora_inicio, zona); const enAct = enPeriodo(m, mes); if (!enAct && !enPeriodo(m, ant)) continue;
     const x = get(e.tipo_pago ?? "SIN");
     const imp = verImportes && s.moneda === moneda ? num(e.total_importe) : 0;
-    if (m === mes) { x.horas += num(e.total_horas); x.importe += imp; x._e.add(e.empleado_id); x._s.add(e.solicitud_id); }
+    if (enAct) { x.horas += num(e.total_horas); x.importe += imp; x._e.add(e.empleado_id); x._s.add(e.solicitud_id); }
     else { x.horasPrevio += num(e.total_horas); x.importePrevio += imp; }
   }
   const filas = [...acc.values()].map(({ _e, _s, ...r }) => ({ ...r, empleados: _e.size, solicitudes: _s.size }));
   return { filas: filas.filter((f) => f.tipo !== "SIN" || f.horas > 0 || f.horasPrevio > 0), moneda, hayTipos: emps.some((e) => !!e.tipo_pago) };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Filtros por área / sector / proceso / solicitante (selección única)
+// ---------------------------------------------------------------------------------------------
+export interface FiltrosStats { area: string | null; sector: string | null; proceso: string | null; solicitante: string | null }
+export const SIN_FILTROS: FiltrosStats = { area: null, sector: null, proceso: null, solicitante: null };
+export interface OpcionesStats {
+  areas: { id: string; nombre: string }[]; sectores: { id: string; nombre: string; area_id: string }[];
+  procesos: { id: string; nombre: string; sector_id: string }[]; solicitantes: { id: string; nombre: string }[];
+}
+
+/** Se filtra por el área / sector / proceso / solicitante de la SOLICITUD (no por los de cada empleado). */
+export function filtrarSolicitudes(filas: SolicitudResumen[], f: FiltrosStats): SolicitudResumen[] {
+  return filas.filter((s) => (!f.area || s.area_id === f.area) && (!f.sector || s.sector_id === f.sector) && (!f.proceso || s.proceso_id === f.proceso) && (!f.solicitante || s.solicitante_id === f.solicitante));
+}
+
+/** Opciones de cada filtro: solo lo que tiene solicitudes en la ventana (y dentro de tu alcance), ordenadas por nombre. */
+export function opcionesFiltros(filas: SolicitudResumen[]): OpcionesStats {
+  const areas = new Map<string, { id: string; nombre: string }>(), sectores = new Map<string, { id: string; nombre: string; area_id: string }>();
+  const procesos = new Map<string, { id: string; nombre: string; sector_id: string }>(), solicitantes = new Map<string, { id: string; nombre: string }>();
+  for (const s of filas) {
+    areas.set(s.area_id, { id: s.area_id, nombre: s.area_nombre }); sectores.set(s.sector_id, { id: s.sector_id, nombre: s.sector_nombre, area_id: s.area_id });
+    procesos.set(s.proceso_id, { id: s.proceso_id, nombre: s.proceso_nombre, sector_id: s.sector_id }); solicitantes.set(s.solicitante_id, { id: s.solicitante_id, nombre: s.solicitante_nombre });
+  }
+  const o = <T extends { nombre: string }>(m: Map<string, T>) => [...m.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  return { areas: o(areas), sectores: o(sectores), procesos: o(procesos), solicitantes: o(solicitantes) };
 }

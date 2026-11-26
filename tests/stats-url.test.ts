@@ -1,0 +1,13 @@
+import { cambiarFiltro, urlStats, UUID_RE } from "../src/lib/stats-url";
+let fallos = 0; const t = (n: string, c: boolean, x?: unknown) => { console.log((c ? "PASS " : "FAIL ") + n + (c ? "" : " -> " + JSON.stringify(x))); if (!c) fallos++; };
+const e0 = { mes: "2026-11", anio: null, tipo: null, area: null, sector: null, proceso: null, solicitante: null };
+t("sin filtros y mes actual: URL limpia", urlStats(e0, "2026-11") === "/estadisticas");
+t("otro mes", urlStats({ ...e0, mes: "2026-09" }, "2026-11") === "/estadisticas?mes=2026-09");
+t("año completo no manda mes", urlStats({ ...e0, mes: "2026-09", anio: "2026" }, "2026-11") === "/estadisticas?anio=2026");
+t("filtros viajan en la URL", urlStats({ ...e0, tipo: "JORNAL", area: "a", sector: "s", proceso: "p", solicitante: "u" }, "2026-11") === "/estadisticas?tipo=JORNAL&area=a&sector=s&proceso=p&solicitante=u");
+const e1 = { ...e0, area: "a", sector: "s", proceso: "p", solicitante: "u" };
+t("cambiar área limpia sector y proceso", (() => { const n = cambiarFiltro(e1, "area", "b"); return n.area === "b" && n.sector === null && n.proceso === null && n.solicitante === "u"; })());
+t("cambiar sector limpia proceso", (() => { const n = cambiarFiltro(e1, "sector", "z"); return n.sector === "z" && n.proceso === null && n.area === "a"; })());
+t("elegir 'todos' quita el filtro", cambiarFiltro(e1, "solicitante", "").solicitante === null);
+t("UUID válido / inválido", UUID_RE.test("123e4567-e89b-12d3-a456-426614174000") && !UUID_RE.test("x' or 1=1"));
+process.exit(fallos ? 1 : 0);

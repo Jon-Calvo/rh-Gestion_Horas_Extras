@@ -12,20 +12,21 @@ import { ImportarFeriados } from "./importar-feriados";
 import { ThOrden, useOrden } from "@/components/ui/orden";
 
 type Fila = Record<string, unknown>;
-type Tipo = "text" | "number" | "date" | "time" | "bool" | "color" | "select" | "ref" | "dia";
-interface Col { k: string; t: string; tipo: Tipo; req?: boolean; opciones?: string[]; ref?: string; refLabel?: string; def?: unknown; lista?: boolean; ayuda?: string }
+type Tipo = "text" | "number" | "date" | "time" | "bool" | "color" | "select" | "ref" | "dia" | "entero";
+interface Col { k: string; t: string; tipo: Tipo; req?: boolean; opciones?: string[]; ref?: string; refLabel?: string; def?: unknown; lista?: boolean; ayuda?: string; soloLista?: boolean }
 interface Def { id: string; titulo: string; cols: Col[]; orden: string; sinActivo?: boolean }
 
 const DEFS: Def[] = [
-  { id: "areas", titulo: "Áreas", orden: "nombre", cols: [{ k: "nombre", t: "Nombre", tipo: "text", req: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
-  { id: "sectores", titulo: "Sectores", orden: "nombre", cols: [{ k: "area_id", t: "Área", tipo: "ref", ref: "areas", refLabel: "nombre", req: true, lista: true }, { k: "nombre", t: "Nombre", tipo: "text", req: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
-  { id: "procesos", titulo: "Procesos", orden: "nombre", cols: [{ k: "sector_id", t: "Sector", tipo: "ref", ref: "sectores", refLabel: "nombre", req: true, lista: true }, { k: "nombre", t: "Nombre", tipo: "text", req: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
-  { id: "motivos", titulo: "Motivos", orden: "motivo", cols: [{ k: "motivo", t: "Motivo", tipo: "text", req: true, lista: true }, { k: "tipo", t: "Tipo", tipo: "select", opciones: ["PRODUCTIVO", "IMPRODUCTIVO"], def: "PRODUCTIVO", lista: true }, { k: "requiere_aprobacion", t: "Requiere aprobación", tipo: "bool", def: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
-  { id: "categoria_tipos", titulo: "Tipos de categoría", orden: "codigo", cols: [{ k: "codigo", t: "Código", tipo: "text", req: true, lista: true }, { k: "descripcion", t: "Descripción", tipo: "text", lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
+  { id: "areas", titulo: "Áreas", orden: "nombre", cols: [{ k: "numero", t: "N°", tipo: "entero", lista: true, soloLista: true }, { k: "nombre", t: "Nombre", tipo: "text", req: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
+  { id: "sectores", titulo: "Sectores", orden: "nombre", cols: [{ k: "numero", t: "N°", tipo: "entero", lista: true, soloLista: true }, { k: "area_id", t: "Área", tipo: "ref", ref: "areas", refLabel: "nombre", req: true, lista: true }, { k: "nombre", t: "Nombre", tipo: "text", req: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
+  { id: "procesos", titulo: "Procesos", orden: "nombre", cols: [{ k: "numero", t: "N°", tipo: "entero", lista: true, soloLista: true }, { k: "sector_id", t: "Sector", tipo: "ref", ref: "sectores", refLabel: "nombre", req: true, lista: true }, { k: "nombre", t: "Nombre", tipo: "text", req: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
+  { id: "motivos", titulo: "Motivos", orden: "motivo", cols: [{ k: "numero", t: "N°", tipo: "entero", lista: true, soloLista: true }, { k: "motivo", t: "Motivo", tipo: "text", req: true, lista: true }, { k: "tipo", t: "Tipo", tipo: "select", opciones: ["PRODUCTIVO", "IMPRODUCTIVO"], def: "PRODUCTIVO", lista: true }, { k: "requiere_aprobacion", t: "Requiere aprobación", tipo: "bool", def: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
+  { id: "categoria_tipos", titulo: "Tipos de categoría", orden: "codigo", cols: [{ k: "numero", t: "N°", tipo: "entero", lista: true, soloLista: true }, { k: "codigo", t: "Código", tipo: "text", req: true, lista: true }, { k: "descripcion", t: "Descripción", tipo: "text", lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
   { id: "categorias", titulo: "Valor hora por categoría", orden: "vigente_desde", sinActivo: true, cols: [{ k: "categoria_tipo_id", t: "Tipo de categoría", tipo: "ref", ref: "categoria_tipos", refLabel: "codigo", req: true, lista: true }, { k: "valor_hora", t: "Valor hora", tipo: "number", req: true, lista: true }, { k: "moneda", t: "Moneda", tipo: "text", req: true, def: "ARS", lista: true }, { k: "vigente_desde", t: "Vigente desde", tipo: "date", req: true, lista: true }, { k: "vigente_hasta", t: "Vigente hasta", tipo: "date", lista: true }] },
-  { id: "bandas_horarias", titulo: "Bandas horarias", orden: "hora_desde", cols: [{ k: "descripcion", t: "Descripción", tipo: "text", req: true, lista: true }, { k: "hora_desde", t: "Desde", tipo: "time", req: true, lista: true }, { k: "hora_hasta", t: "Hasta", tipo: "time", req: true, lista: true, ayuda: "Si es menor que «Desde» (ej. 22:00 a 06:00) la banda cruza la medianoche y pertenece al día en que empieza." }, { k: "dia_desde", t: "Día desde", tipo: "dia", req: true, def: 1, lista: true }, { k: "dia_hasta", t: "Día hasta", tipo: "dia", req: true, def: 5, lista: true, ayuda: "Rango inclusive. Si «Día desde» es mayor (ej. sábado a martes) el rango pasa por el domingo. Para un solo día, elegí el mismo." }, { k: "multiplicador", t: "Multiplicador", tipo: "number", req: true, def: 1, lista: true }, { k: "multiplicador_feriado", t: "Mult. feriado", tipo: "number", lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
+  { id: "conceptos_horarios", titulo: "Criterios horarios", orden: "numero", cols: [{ k: "numero", t: "N°", tipo: "entero", lista: true, soloLista: true }, { k: "descripcion", t: "Descripción", tipo: "text", req: true, lista: true, ayuda: "Nombre del criterio, ej.: «Extras Nocturnas (al 50%)». Es la columna que aparece en el Excel de solicitudes." }, { k: "multiplicador", t: "Multiplicador", tipo: "number", req: true, def: 1, lista: true, ayuda: "Factor normal. Al cambiarlo se actualizan todas las franjas que usan este criterio." }, { k: "multiplicador_feriado", t: "Mult. feriado", tipo: "number", lista: true, ayuda: "Factor para horas en feriado (reemplaza al normal). Vacío = usa el normal." }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
+  { id: "bandas_horarias", titulo: "Franjas horarias", orden: "hora_desde", cols: [{ k: "concepto_id", t: "Criterio", tipo: "ref", ref: "conceptos_horarios", refLabel: "descripcion", req: true, lista: true, ayuda: "El criterio define el nombre y los factores. Se administra en «Criterios horarios»." }, { k: "hora_desde", t: "Desde", tipo: "time", req: true, lista: true }, { k: "hora_hasta", t: "Hasta", tipo: "time", req: true, lista: true, ayuda: "Si es menor que «Desde» (ej. 22:00 a 06:00) la franja cruza la medianoche y pertenece al día en que empieza." }, { k: "dia_desde", t: "Día desde", tipo: "dia", req: true, def: 1, lista: true }, { k: "dia_hasta", t: "Día hasta", tipo: "dia", req: true, def: 5, lista: true, ayuda: "Rango inclusive. Si «Día desde» es mayor (ej. sábado a martes) el rango pasa por el domingo. Para un solo día, elegí el mismo." }, { k: "multiplicador", t: "Multiplicador", tipo: "number", lista: true, soloLista: true }, { k: "multiplicador_feriado", t: "Mult. feriado", tipo: "number", lista: true, soloLista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
   { id: "feriados", titulo: "Feriados", orden: "fecha", sinActivo: true, cols: [{ k: "fecha", t: "Fecha", tipo: "date", req: true, lista: true }, { k: "descripcion", t: "Descripción", tipo: "text", lista: true }] },
-  { id: "ib_configuracion", titulo: "Configuración IB", orden: "descripcion", cols: [{ k: "descripcion", t: "Descripción", tipo: "text", req: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
+  { id: "ib_configuracion", titulo: "Configuración IB", orden: "descripcion", cols: [{ k: "numero", t: "N°", tipo: "entero", lista: true, soloLista: true }, { k: "descripcion", t: "Descripción", tipo: "text", req: true, lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
   { id: "bandas_ranking", titulo: "Bandas de ranking", orden: "ranking_inferior", cols: [{ k: "descripcion", t: "Descripción", tipo: "text", req: true, lista: true }, { k: "ranking_inferior", t: "Ranking desde", tipo: "number", req: true, lista: true }, { k: "ranking_superior", t: "Ranking hasta", tipo: "number", lista: true }, { k: "color", t: "Color", tipo: "color", req: true, def: "#64748B", lista: true }, { k: "aplica_a_solicitud", t: "Aplica a solicitud", tipo: "bool", def: true, lista: true }, { k: "aplica_a_real", t: "Aplica a real", tipo: "bool", def: false, lista: true }, { k: "bloqueo_seleccion", t: "Selección", tipo: "select", opciones: ["PERMITIDO", "ADVERTENCIA", "BLOQUEADO"], def: "PERMITIDO", lista: true }, { k: "activo", t: "Activo", tipo: "bool", def: true, lista: true }] },
 ];
 
@@ -53,6 +54,7 @@ function Tabla({ def, filas, datos }: { def: Def; filas: Fila[]; datos: Record<s
     if (c.tipo === "date") return v ? String(v).split("-").reverse().join("/") : "—";
     if (c.tipo === "time") return v ? String(v).slice(0, 5) : "—";
     if (c.tipo === "dia") return v === undefined || v === null ? "—" : `${v} · ${DIAS_CORTO[Number(v) - 1]}`;
+    if (c.tipo === "entero") return v === null || v === undefined ? "—" : String(v);
     if (c.tipo === "number") return v === null || v === undefined || v === "" ? "—" : decimalATexto(v as number);
     if (c.tipo === "color") return <span className="inline-flex items-center gap-2"><span style={{ width: 14, height: 14, borderRadius: 4, background: String(v), border: "1px solid var(--border)" }} />{String(v)}</span>;
     return v === null || v === undefined || v === "" ? "—" : String(v);
@@ -76,7 +78,7 @@ function Tabla({ def, filas, datos }: { def: Def; filas: Fila[]; datos: Record<s
   }, [ord, q, def, datos]);
   const { ordenadas, orden, alternar } = useOrden<Fila>(visibles, (f, k) => {
     const c = def.cols.find((x) => x.k === k)!;
-    if (c.tipo === "number") { const v = f[k]; return v === null || v === undefined || v === "" ? null : Number(v); }
+    if (c.tipo === "number" || c.tipo === "entero") { const v = f[k]; return v === null || v === undefined || v === "" ? null : Number(v); }
     if (c.tipo === "date" || c.tipo === "time") return f[k] === null || f[k] === undefined ? null : String(f[k]); // ISO: ordena bien como texto
     if (c.tipo === "dia") return f[k] === null || f[k] === undefined ? null : Number(f[k]);
     return texto(c, f);
@@ -99,7 +101,7 @@ function Tabla({ def, filas, datos }: { def: Def; filas: Fila[]; datos: Record<s
 
 function Form({ def, fila, datos, onCerrar }: { def: Def; fila: Fila | null; datos: Record<string, Fila[]>; onCerrar: () => void }) {
   const toast = useToast(); const router = useRouter();
-  const [v, setV] = useState<Record<string, unknown>>(() => Object.fromEntries(def.cols.map((c) => {
+  const [v, setV] = useState<Record<string, unknown>>(() => Object.fromEntries(def.cols.filter((c) => !c.soloLista).map((c) => {
     const ini = fila ? (fila[c.k] ?? (c.tipo === "dia" ? (c.k === "dia_hasta" ? 7 : 1) : c.tipo === "bool" ? false : "")) : (c.def ?? (c.tipo === "bool" ? false : ""));
     return [c.k, c.tipo === "number" ? decimalATexto(ini as number) : ini];
   })));
@@ -107,7 +109,7 @@ function Form({ def, fila, datos, onCerrar }: { def: Def; fila: Fila | null; dat
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault(); setOcupado(true);
     const payload: Record<string, unknown> = {};
-    for (const c of def.cols) {
+    for (const c of def.cols.filter((c) => !c.soloLista)) {
       const x = v[c.k];
       if (c.tipo === "number") {
         const n = parseDecimal(x as string);
@@ -130,7 +132,7 @@ function Form({ def, fila, datos, onCerrar }: { def: Def; fila: Fila | null; dat
   return (
     <Modal abierto onCerrar={onCerrar} titulo={`${fila ? "Editar" : "Agregar"} · ${def.titulo}`}>
       <form onSubmit={guardar} className="space-y-3">
-        {def.cols.map((c) => (
+        {def.cols.filter((c) => !c.soloLista).map((c) => (
           <label key={c.k} className={c.tipo === "bool" ? "flex items-center gap-2 text-sm" : "block"}>
             {c.tipo === "bool" ? <><input type="checkbox" checked={!!v[c.k]} onChange={(e) => setV({ ...v, [c.k]: e.target.checked })} />{c.t}</> : <>
               <span className="label">{c.t}{c.req && " *"}</span>

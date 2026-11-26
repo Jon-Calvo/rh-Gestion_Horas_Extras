@@ -21,6 +21,13 @@ Ingreso · Panel · Solicitudes (lista, nueva, detalle con aprobación por emple
 - **Segundo logo y segundo nombre** (Configuración → Apariencia): el encabezado del menú conserva logo 1, nombre 1 y el texto gris; el logo 2 y el nombre 2 van al pie del menú y en la pantalla de ingreso. El **texto gris** (antes fijo «Horas extras») es editable. Requieren las migraciones `0003` (logo 2 y nombre 2) y `0004` (texto gris); sin ellas la pantalla funciona igual y avisa que falta.
 - **Contadores en el menú**: «Aprobaciones» (solicitudes en aprobación dentro de tu alcance) y «Control de ingreso» (aprobadas pendientes de control) muestran un número rojo. Se actualizan al navegar, al volver a la pestaña y cada 60 s (`/api/pendientes`).
 
+## Novedades (séptima tanda) — requiere la migración 0007
+
+- **N° identificador entero e inmutable** en Áreas, Sectores, Procesos, Motivos, Tipos de categoría, Configuración IB, Usuarios y Criterios horarios. Se asigna por orden de creación, no cambia al renombrar y no se reutiliza. Se ve en la columna «N°» de Catálogos.
+- **Excel de solicitudes**: nuevas columnas IdSolicitante, IdMotivo, IdArea, IdSector, IdProceso, IdCategoria, IdIB, IdUsuarioAprobacion e IdUsuarioControlIngreso. Las columnas de horas ahora son una por **criterio horario** y llevan su N° en el encabezado (`Hs [1] Extras (al 50%)`).
+- **Criterios horarios** (nuevo catálogo): el criterio define nombre y factores (normal y feriado); las **franjas horarias** eligen un criterio y solo llevan días y horas. Cambiar el factor o el nombre del criterio actualiza todas sus franjas.
+- **Estadísticas**: filtros Área → Sector → Proceso (en cascada) y Solicitante (selección única, por los datos de la solicitud) y vista **Año completo** (12 meses contra el año anterior). Todo viaja en la URL y se refleja en el PDF.
+
 ## Novedades (sexta tanda)
 
 Requiere la migración `0006_alcances_multiples_y_sesion.sql` (aplicarla **antes** de publicar esta versión).

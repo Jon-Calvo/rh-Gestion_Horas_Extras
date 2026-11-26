@@ -1,15 +1,17 @@
 import { fmtHoras, fmtImporte } from "@/lib/format";
-import { TIPO_LABEL, type ComparativoTipos, type Kpis, type TipoPago } from "@/lib/kpis";
+import { TIPO_LABEL, type ComparativoTipos, type Kpis, type OpcionesStats, type TipoPago } from "@/lib/kpis";
+import type { EstadoStats } from "@/lib/stats-url";
 import { PageHeader, Vacio } from "@/components/ui/misc";
 import { SITUACION_LABEL, type Situacion } from "@/lib/types";
-import { SelectorMes } from "./selector-mes";
+import { SelectorMes, SelectoresAlcance } from "./selector-mes";
 import { BotonPdf } from "./boton-pdf";
 import { Delta, KpiCard, Mix, Tendencia, TopLista, fh, fi, mesLargo } from "./graficos";
 
 export interface TopEmp { nombre: string; legajo: string; horas: number; importe: number; solicitudes: number }
 
-export function VistaEstadisticas({ k, te, mes, hoy, verImp, hayDatos, tipo, comp }: { k: Kpis; te: { distintos: number; top: TopEmp[] }; mes: string; hoy: string; verImp: boolean; hayDatos: boolean; tipo: TipoPago | null; comp: ComparativoTipos | null }) {
+export function VistaEstadisticas({ k, te, mes, hoy, verImp, hayDatos, hayVentana, tipo, comp, estado, opciones, filtrosTxt }: { k: Kpis; te: { distintos: number; top: TopEmp[] }; mes: string; hoy: string; verImp: boolean; hayDatos: boolean; hayVentana: boolean; tipo: TipoPago | null; comp: ComparativoTipos | null; estado: EstadoStats; opciones: OpcionesStats; filtrosTxt: string[] }) {
   const a = k.actual, p = k.previo, ant = mesLargo(k.anterior);
+  const anio = k.esAnio, antTxt = anio ? "año anterior" : "mes anterior", perTxt = anio ? "del año" : "del mes", ventTxt = anio ? "los 12 meses" : "los últimos 6 meses";
   const totalPedido = a.horasAprob + a.horasRech + a.horasPend, totalPedidoPrev = p.horasAprob + p.horasRech + p.horasPend;
   const tasaRech = totalPedido > 0 ? (a.horasRech / totalPedido) * 100 : 0, tasaPrev = totalPedidoPrev > 0 ? (p.horasRech / totalPedidoPrev) * 100 : 0;
   const mon = k.monedaPrincipal, impA = mon ? a.importeAprob[mon] ?? 0 : 0, impP = mon ? p.importeAprob[mon] ?? 0 : 0;
@@ -24,30 +26,31 @@ export function VistaEstadisticas({ k, te, mes, hoy, verImp, hayDatos, tipo, com
 
   return (
     <>
-      <PageHeader titulo="Estadísticas" subtitulo={`Mes de la extra: ${mesLargo(mes)}.${tipo ? ` Solo empleados ${TIPO_LABEL[tipo].toLowerCase()}.` : ""} Se cuentan las solicitudes en aprobación, aprobadas, rechazadas y finalizadas que podés ver.`} acciones={<><SelectorMes mes={mes} actual={hoy} tipo={tipo} conTipo={comp !== null} /><BotonPdf nombreArchivo={`Estadisticas-${mes}${tipo ? `-${TIPO_LABEL[tipo]}` : ""}`} /></>} />
-      <div className="solo-print mb-3 text-sm" aria-hidden>Estadísticas · {mesLargo(mes)}{tipo ? ` · ${TIPO_LABEL[tipo]}` : " · Jornal y mensual"} · Generado el {new Date().toLocaleDateString("es-AR")}</div>
-      {!hayDatos && <Vacio titulo="Sin solicitudes en el período" detalle="No hay solicitudes de los últimos 6 meses con tu alcance de visibilidad." />}
+      <PageHeader titulo="Estadísticas" subtitulo={`${anio ? "Año de la extra" : "Mes de la extra"}: ${anio ? mes : mesLargo(mes)}.${filtrosTxt.length ? ` ${filtrosTxt.join(" · ")}.` : ""}${tipo ? ` Solo empleados ${TIPO_LABEL[tipo].toLowerCase()}.` : ""} Se cuentan las solicitudes en aprobación, aprobadas, rechazadas y finalizadas que podés ver.`} acciones={<><SelectorMes estado={estado} actual={hoy} conTipo={comp !== null} /><BotonPdf nombreArchivo={`Estadisticas-${mes}${tipo ? `-${TIPO_LABEL[tipo]}` : ""}${filtrosTxt.length ? "-filtrado" : ""}`} /></>} />
+      <div className="solo-print mb-3 text-sm" aria-hidden>Estadísticas · {mesLargo(mes)}{tipo ? ` · ${TIPO_LABEL[tipo]}` : " · Jornal y mensual"}{filtrosTxt.length ? ` · ${filtrosTxt.join(" · ")}` : ""} · Generado el {new Date().toLocaleDateString("es-AR")}</div>
+      <SelectoresAlcance estado={estado} actual={hoy} opciones={opciones} />
+      {!hayDatos && <Vacio titulo="Sin solicitudes en el período" detalle={hayVentana ? "No hay solicitudes con los filtros elegidos. Probá quitar alguno." : `No hay solicitudes de ${ventTxt} con tu alcance de visibilidad.`} />}
       {hayDatos && <>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <KpiCard titulo="Solicitudes" valor={nStr(a.solicitudes)}><Delta actual={a.solicitudes} anterior={p.solicitudes} formato={nStr} etiquetaAnterior={ant} /></KpiCard>
           <KpiCard titulo="Horas aprobadas" valor={fh(a.horasAprob)} ayuda="Horas de los empleados aprobados (programadas)"><Delta actual={a.horasAprob} anterior={p.horasAprob} formato={fh} etiquetaAnterior={ant} /></KpiCard>
           {verImp && (mon ? <KpiCard titulo={`Importe aprobado (${mon})`} valor={fimp(impA)}><Delta actual={impA} anterior={impP} formato={fimp} etiquetaAnterior={ant} /></KpiCard> : <KpiCard titulo="Importe aprobado" valor="—" />)}
           <KpiCard titulo="Horas rechazadas" valor={fh(a.horasRech)} ayuda="Porcentaje sobre el total de horas pedidas (aprobadas + rechazadas + pendientes)">
-            <div className="text-xs text-muted mt-1">{pctTxt(tasaRech)} de lo pedido <span>(mes anterior: {pctTxt(tasaPrev)}, {tasaRech - tasaPrev > 0 ? "+" : ""}{pctPlano(tasaRech - tasaPrev)})</span></div>
+            <div className="text-xs text-muted mt-1">{pctTxt(tasaRech)} de lo pedido <span>({antTxt}: {pctTxt(tasaPrev)}, {tasaRech - tasaPrev > 0 ? "+" : ""}{pctPlano(tasaRech - tasaPrev)})</span></div>
           </KpiCard>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
           <KpiCard titulo="Pendientes de aprobación" valor={fh(a.horasPend)} ayuda="Horas de empleados que todavía esperan decisión"><div className="text-xs text-muted mt-1">{nStr(k.porSituacion["EN_APROBACION"] ?? 0)} solicitud(es) en aprobación</div></KpiCard>
           <KpiCard titulo="Con control de ingreso resuelto" valor={fh(a.horasFinalizadas)} ayuda="Horas aprobadas de solicitudes finalizadas"><div className="text-xs text-muted mt-1">{a.horasAprob > 0 ? pctTxt((a.horasFinalizadas / a.horasAprob) * 100) : "—"} de las aprobadas</div></KpiCard>
-          <KpiCard titulo="Empleados con extras" valor={nStr(te.distintos)} ayuda="Empleados distintos con horas aprobadas en el mes"><div className="text-xs text-muted mt-1">Promedio {te.distintos > 0 ? fmtHoras(a.horasAprob / te.distintos) : "—"} h por empleado</div></KpiCard>
-          {verImp && mon && a.horasAprob > 0 ? <KpiCard titulo={`Costo promedio por hora (${mon})`} valor={fmtImporte(impA / a.horasAprob)} ayuda="Importe aprobado / horas aprobadas de la moneda principal"><div className="text-xs text-muted mt-1">{p.horasAprob > 0 && impP > 0 ? `Mes anterior: ${fmtImporte(impP / p.horasAprob)}` : "Sin base en el mes anterior"}</div></KpiCard>
+          <KpiCard titulo="Empleados con extras" valor={nStr(te.distintos)} ayuda="Empleados distintos con horas aprobadas en el período"><div className="text-xs text-muted mt-1">Promedio {te.distintos > 0 ? fmtHoras(a.horasAprob / te.distintos) : "—"} h por empleado</div></KpiCard>
+          {verImp && mon && a.horasAprob > 0 ? <KpiCard titulo={`Costo promedio por hora (${mon})`} valor={fmtImporte(impA / a.horasAprob)} ayuda="Importe aprobado / horas aprobadas de la moneda principal"><div className="text-xs text-muted mt-1">{p.horasAprob > 0 && impP > 0 ? `${anio ? "Año anterior" : "Mes anterior"}: ${fmtImporte(impP / p.horasAprob)}` : `Sin base en el ${antTxt}`}</div></KpiCard>
             : <KpiCard titulo="Horas por solicitud" valor={a.solicitudes > 0 ? fh(a.horasAprob / a.solicitudes) : "—"}><div className="text-xs text-muted mt-1">Promedio de horas aprobadas</div></KpiCard>}
         </div>
         {verImp && k.otrasMonedas.length > 0 && <p className="text-xs rounded-lg px-3 py-2 mb-4" style={{ background: "color-mix(in srgb, var(--warning) 14%, transparent)" }}>Hay importes en otras monedas ({k.otrasMonedas.join(", ")}) que no se suman: los importes de esta pantalla corresponden solo a {mon}.</p>}
 
         <div className="grid lg:grid-cols-2 gap-3 mb-3">
-          <Tendencia titulo="Horas aprobadas · últimos 6 meses" serie={k.serie} valor={(m) => m.horasAprob} formato={(n) => nStr(Math.round(n))} mes={mes} />
-          {verImp && mon ? <Tendencia titulo={`Importe aprobado (${mon}) · últimos 6 meses`} serie={k.serie} valor={(m) => m.importeAprob[mon] ?? 0} formato={(n) => new Intl.NumberFormat("es-AR", { notation: "compact", maximumFractionDigits: 1 }).format(n)} mes={mes} /> : <Mix productivo={k.mix.productivo} improductivo={k.mix.improductivo} />}
+          <Tendencia titulo={anio ? `Horas aprobadas · por mes de ${mes}` : "Horas aprobadas · últimos 6 meses"} serie={k.serie} valor={(m) => m.horasAprob} formato={(n) => nStr(Math.round(n))} mes={anio ? "" : mes} />
+          {verImp && mon ? <Tendencia titulo={anio ? `Importe aprobado (${mon}) · por mes de ${mes}` : `Importe aprobado (${mon}) · últimos 6 meses`} serie={k.serie} valor={(m) => m.importeAprob[mon] ?? 0} formato={(n) => new Intl.NumberFormat("es-AR", { notation: "compact", maximumFractionDigits: 1 }).format(n)} mes={anio ? "" : mes} /> : <Mix productivo={k.mix.productivo} improductivo={k.mix.improductivo} />}
         </div>
 
         {comp === null && <p className="text-xs rounded-lg px-3 py-2 mb-3" style={{ background: "color-mix(in srgb, var(--warning) 14%, transparent)" }}>No se pudo leer el tipo de empleado (Jornal/Mensual). Verificá que la migración 0005 esté aplicada.</p>}
@@ -59,7 +62,7 @@ export function VistaEstadisticas({ k, te, mes, hoy, verImp, hayDatos, tipo, com
         </section>}
 
         <section className="card overflow-hidden mb-3">
-          <div className="px-4 pt-4 pb-2"><h3 className="font-semibold text-sm">Comparativo contra el mes anterior</h3></div>
+          <div className="px-4 pt-4 pb-2"><h3 className="font-semibold text-sm">Comparativo contra el {antTxt}</h3></div>
           <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Indicador</th><th className="text-right">{mesLargo(mes)}</th><th className="text-right">{ant}</th><th className="text-right">Diferencia</th><th className="text-right">Variación</th></tr></thead>
             <tbody>
               {filaComp("Solicitudes", a.solicitudes, p.solicitudes, nStr)}
@@ -78,11 +81,11 @@ export function VistaEstadisticas({ k, te, mes, hoy, verImp, hayDatos, tipo, com
           <TopLista titulo="Top 5 sectores · horas aprobadas" items={k.topSectorHoras.map((x) => ({ clave: x.clave, nombre: x.nombre, detalle: x.detalle, v: x.horas, extra: `${x.solicitudes} solicitud(es)` }))} formato={fh} />
           <TopLista titulo="Top 5 empleados · horas aprobadas" items={te.top.map((x) => ({ clave: x.legajo, nombre: x.nombre, detalle: x.legajo, v: x.horas, extra: `${x.solicitudes} solicitud(es)${verImp && mon ? ` · ${fimp(x.importe)}` : ""}` }))} formato={fh} pie="Útil para detectar sobrecarga de horas en pocas personas." />
           {verImp && mon ? <Mix productivo={k.mix.productivo} improductivo={k.mix.improductivo} /> : null}
-          <section className="card p-4"><h3 className="font-semibold text-sm mb-3">Solicitudes del mes por estado</h3>
+          <section className="card p-4"><h3 className="font-semibold text-sm mb-3">Solicitudes {perTxt} por estado</h3>
             <ul className="flex flex-wrap gap-2">{Object.entries(k.porSituacion).length === 0 ? <li className="text-sm text-muted">Sin datos en el mes</li> : Object.entries(k.porSituacion).map(([sit, n]) => <li key={sit} className="badge" style={{ background: "var(--surface-2)", color: "var(--text)" }}>{SITUACION_LABEL[sit as Situacion] ?? sit}: <b className="ml-1">{n}</b></li>)}</ul>
           </section>
         </div>
-        <p className="text-xs text-muted mt-4">Las horas e importes «aprobados» son los programados en la solicitud para los empleados aprobados (no se descuentan quienes luego figuran como «no se presentó»). El mes se toma por la fecha de inicio de la extra. Las solicitudes canceladas, eliminadas y en borrador no se cuentan.{!verImp && " Tu usuario no tiene permiso para ver importes."}</p>
+        <p className="text-xs text-muted mt-4">Las horas e importes «aprobados» son los programados en la solicitud para los empleados aprobados (no se descuentan quienes luego figuran como «no se presentó»). El período se toma por la fecha de inicio de la extra. Los filtros de área, sector y proceso se aplican a los de la solicitud. Las solicitudes canceladas, eliminadas y en borrador no se cuentan.{!verImp && " Tu usuario no tiene permiso para ver importes."}</p>
       </>}
     </>
   );

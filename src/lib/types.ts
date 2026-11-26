@@ -12,7 +12,8 @@ export interface Proceso { id: string; sector_id: string; nombre: string; activo
 export interface Motivo { id: string; motivo: string; tipo: "PRODUCTIVO" | "IMPRODUCTIVO"; requiere_aprobacion: boolean; activo: boolean }
 export interface CategoriaTipo { id: string; codigo: string; descripcion: string | null; activo: boolean }
 export interface Categoria { id: string; categoria_tipo_id: string; valor_hora: number; moneda: string; vigente_desde: string; vigente_hasta: string | null }
-export interface BandaHoraria { id: string; descripcion: string; hora_desde: string; hora_hasta: string; multiplicador: number; multiplicador_feriado: number | null; activo: boolean; dia_desde?: number; dia_hasta?: number }
+export interface BandaHoraria { id: string; descripcion: string; hora_desde: string; hora_hasta: string; multiplicador: number; multiplicador_feriado: number | null; activo: boolean; dia_desde?: number; dia_hasta?: number; concepto_id?: string | null }
+export interface ConceptoHorario { id: string; numero: number; descripcion: string; multiplicador: number; multiplicador_feriado: number | null; activo: boolean }
 export interface Feriado { id: string; fecha: string; descripcion: string | null }
 export interface IbConfig { id: string; descripcion: string; activo: boolean }
 export interface BandaRanking {
